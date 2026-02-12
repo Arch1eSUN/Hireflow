@@ -1,0 +1,412 @@
+// ================================================
+// HireFlow AI — 核心类型定义 (共享包)
+// ================================================
+
+// ======= AI 提供商类型 =======
+export enum AIModelType {
+    GEMINI_PRO = 'gemini-2.5-pro',
+    GEMINI_FLASH = 'gemini-2.5-flash',
+    GPT_4O = 'gpt-4o',
+    GPT_4O_MINI = 'gpt-4o-mini',
+    CLAUDE_SONNET = 'claude-sonnet-4-20250514',
+    CLAUDE_OPUS = 'claude-opus-4-20250514',
+    LOCAL = 'local-model',
+    MOCK = 'mock-model',
+}
+
+export interface AIProviderConfig {
+    model: AIModelType;
+    temperature?: number;
+    maxTokens?: number;
+    apiKey?: string;
+    baseUrl?: string;
+    fallbackModel?: AIModelType;
+}
+
+export interface AIResponse {
+    text: string;
+    usage?: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+    };
+    latencyMs: number;
+    model: string;
+    costEstimate?: number;
+}
+
+export interface AIGatewayLog {
+    id: string;
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+    latencyMs: number;
+    costEstimate: number;
+    timestamp: number;
+    status: 'success' | 'fallback' | 'error';
+    errorMessage?: string;
+}
+
+// ======= 认证类型 =======
+export interface AuthTokens {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+}
+
+export interface LoginRequest {
+    email: string;
+    password: string;
+}
+
+export interface RegisterRequest {
+    companyName: string;
+    email: string;
+    password: string;
+    name: string;
+}
+
+// ======= 企业 & 用户类型 =======
+export type UserRole = 'owner' | 'admin' | 'hr_manager' | 'interviewer' | 'viewer';
+export type SupportedLocale = 'zh-CN' | 'en-US';
+
+export interface Company {
+    id: string;
+    name: string;
+    domain: string;
+    logo?: string;
+    settings: CompanySettings;
+    createdAt: string;
+}
+
+export interface CompanySettings {
+    defaultModel: AIModelType;
+    dataRetentionDays: number;
+    enableAntiCheat: boolean;
+    enableVideoRecording: boolean;
+    timezone: string;
+    language: SupportedLocale;
+    brandColor?: string;
+    welcomeMessage?: string;
+}
+
+export interface User {
+    id: string;
+    companyId: string;
+    email: string;
+    name: string;
+    avatar?: string;
+    role: UserRole;
+    lastActiveAt?: string;
+    createdAt: string;
+}
+
+// ======= 岗位类型 =======
+export type JobStatus = 'draft' | 'active' | 'paused' | 'closed';
+export type JobType = 'full-time' | 'part-time' | 'contract' | 'intern';
+
+export interface Job {
+    id: string;
+    companyId: string;
+    title: string;
+    department: string;
+    location: string;
+    type: JobType;
+    descriptionJd: string;
+    requirements: string[];
+    status: JobStatus;
+    salaryRange?: { min: number; max: number; currency: string };
+    pipeline: PipelineStage[];
+    candidateCount?: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface PipelineStage {
+    id: string;
+    name: string;
+    type: 'screening' | 'interview_1' | 'interview_2' | 'hr_interview' | 'offer' | 'custom';
+    order: number;
+    aiModel?: AIModelType;
+    timeLimit?: number;
+    questionBankId?: string;
+    scoringWeights?: Record<string, number>;
+}
+
+// ======= 候选人 & 简历类型 =======
+export type CandidateStage = 'applied' | 'screening' | 'interview_1' | 'interview_2' | 'offer' | 'hired' | 'rejected';
+export type VerificationStatus = 'pending' | 'verified' | 'disputed' | 'unverified';
+
+export interface Candidate {
+    id: string;
+    jobId: string;
+    name: string;
+    email: string;
+    phone?: string;
+    stage: CandidateStage;
+    score: number;
+    skills: string[];
+    appliedDate: string;
+    avatar?: string;
+    resumeId?: string;
+    verificationStatus: VerificationStatus;
+    tags?: string[];
+    source?: string;
+}
+
+export interface Resume {
+    id: string;
+    candidateId: string;
+    s3Url: string;
+    parsedContent: ParsedResume;
+    matchScore: number;
+    isDuplicate: boolean;
+    credibilityScore?: number;
+    uploadedAt: string;
+}
+
+export interface ParsedResume {
+    name: string;
+    email: string;
+    phone?: string;
+    education: Education[];
+    experience: WorkExperience[];
+    skills: string[];
+    languages?: string[];
+    summary?: string;
+    totalYearsExperience: number;
+}
+
+export interface Education {
+    institution: string;
+    degree: string;
+    field: string;
+    startDate: string;
+    endDate?: string;
+    gpa?: number;
+    verified?: boolean;
+}
+
+export interface WorkExperience {
+    company: string;
+    title: string;
+    startDate: string;
+    endDate?: string;
+    description: string;
+    current: boolean;
+}
+
+// ======= 面试类型 =======
+export type InterviewStatus = 'pending' | 'ready' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
+export type InterviewType = 'screening' | 'technical' | 'behavioral' | 'hr' | 'custom';
+
+export interface Interview {
+    id: string;
+    candidateId: string;
+    candidateName: string;
+    jobId: string;
+    jobTitle?: string;
+    stage: string;
+    type: InterviewType;
+    interviewLink: string;
+    token: string;
+    linkExpiresAt: string;
+    scheduledAt?: string;
+    timeLimit?: number;
+    status: InterviewStatus;
+    aiModel: AIModelType;
+    duration?: number;
+    createdAt: string;
+}
+
+export interface InterviewSession {
+    id: string;
+    interviewId: string;
+    candidateName: string;
+    status: 'waiting' | 'device_check' | 'active' | 'completed';
+    messages: ChatMessage[];
+    videoS3Url?: string;
+    transcript?: TranscriptEntry[];
+    antiCheatEvents: AntiCheatEvent[];
+    startedAt?: string;
+    endedAt?: string;
+}
+
+export interface ChatMessage {
+    id: string;
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+    timestamp: number;
+    audioUrl?: string;
+}
+
+export interface TranscriptEntry {
+    speaker: 'candidate' | 'ai';
+    text: string;
+    timestamp: number;
+    confidence: number;
+}
+
+export type AntiCheatEventType =
+    | 'VISIBILITY'
+    | 'FOCUS_LOST'
+    | 'MULTI_FACE'
+    | 'NO_FACE'
+    | 'LIVENESS_FAIL'
+    | 'DEVICE_FINGERPRINT'
+    | 'AI_DETECT'
+    | 'AUDIO_ANOMALY'
+    | 'MOUSE_ANOMALY';
+
+export interface AntiCheatEvent {
+    type: AntiCheatEventType;
+    message: string;
+    severity: 'low' | 'medium' | 'high';
+    timestamp: number;
+    metadata?: Record<string, unknown>;
+}
+
+// ======= 评估类型 =======
+export type Recommendation = 'strong_hire' | 'hire' | 'maybe' | 'no_hire';
+export type VoteType = 'hire' | 'pending' | 'reject';
+
+export interface Evaluation {
+    id: string;
+    interviewId: string;
+    candidateId: string;
+    userId: string;
+    userName: string;
+    scoreTotal: number;
+    dimensionScores: DimensionScore[];
+    aiSummary: string;
+    recommendation: Recommendation;
+    vote?: VoteType;
+    comment?: string;
+    createdAt: string;
+}
+
+export interface DimensionScore {
+    dimension: string;
+    score: number;
+    weight: number;
+    aiComment: string;
+}
+
+// ======= 规则引擎类型 =======
+export type RuleOperator =
+    | 'EQUALS' | 'NOT_EQUALS'
+    | 'CONTAINS' | 'NOT_CONTAINS'
+    | 'GTE' | 'LTE' | 'GT' | 'LT'
+    | 'IN' | 'BETWEEN' | 'REGEX'
+    | 'AND' | 'OR' | 'NOT';
+
+export interface RuleNode {
+    id: string;
+    type: 'condition' | 'group';
+    operator?: RuleOperator;
+    field?: string;
+    value?: unknown;
+    children?: RuleNode[];
+    label?: string;
+}
+
+export interface ScreeningRule {
+    id: string;
+    jobId: string;
+    name: string;
+    description?: string;
+    ruleDsl: RuleNode;
+    minScore: number;
+    isActive: boolean;
+    createdAt: string;
+}
+
+// ======= 统计分析类型 =======
+export interface StageMetric {
+    name: string;
+    count: number;
+    conversionRate: number;
+    avgTimeInStage: number;
+}
+
+export interface DailyMetric {
+    date: string;
+    applications: number;
+    interviews: number;
+    offers: number;
+}
+
+export interface AIUsageStats {
+    totalCalls: number;
+    totalTokens: number;
+    totalCost: number;
+    avgLatency: number;
+    errorRate: number;
+    byModel: Record<string, { calls: number; tokens: number; cost: number }>;
+}
+
+// ======= 通知类型 =======
+export type NotificationType =
+    | 'interview_scheduled'
+    | 'interview_reminder'
+    | 'interview_completed'
+    | 'candidate_applied'
+    | 'evaluation_ready'
+    | 'mention'
+    | 'system';
+
+export interface Notification {
+    id: string;
+    userId: string;
+    type: NotificationType;
+    title: string;
+    message: string;
+    read: boolean;
+    actionUrl?: string;
+    createdAt: string;
+}
+
+// ======= 审计日志类型 =======
+export interface AuditLog {
+    id: string;
+    entityId: string;
+    entityType: 'candidate' | 'interview' | 'job' | 'user' | 'evaluation' | 'company';
+    action: string;
+    userId: string;
+    userName: string;
+    timestamp: string;
+    metadata?: Record<string, unknown>;
+}
+
+// ======= API 通用响应 =======
+export interface ApiResponse<T> {
+    success: boolean;
+    data?: T;
+    error?: {
+        code: string;
+        message: string;
+    };
+    meta?: {
+        page?: number;
+        pageSize?: number;
+        total?: number;
+    };
+}
+
+// ======= 设备检测类型 =======
+export interface DeviceCheckResult {
+    camera: boolean;
+    microphone: boolean;
+    network: 'good' | 'fair' | 'poor';
+    networkSpeed: number;
+    browser: string;
+    isCompatible: boolean;
+}
+
+// ======= 候选人反馈类型 =======
+export interface CandidateFeedback {
+    interviewToken: string;
+    rating: 1 | 2 | 3 | 4 | 5;
+    comment?: string;
+    submittedAt: string;
+}

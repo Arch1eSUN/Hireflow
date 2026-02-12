@@ -1,24 +1,26 @@
 {
   "name": "hireflow-ai",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/shared/*",
+    "server"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.2.4",
-    "@google/genai": "^1.41.0",
-    "react-dom": "^19.2.4",
-    "recharts": "^3.7.0",
-    "lucide-react": "^0.563.0"
+    "dev": "turbo dev",
+    "dev:portal": "turbo dev --filter=@hireflow/portal",
+    "dev:interview": "turbo dev --filter=@hireflow/interview",
+    "dev:server": "turbo dev --filter=@hireflow/server",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
-  }
+    "turbo": "^2.5.0",
+    "typescript": "~5.8.2"
+  },
+  "packageManager": "npm@10.0.0"
 }

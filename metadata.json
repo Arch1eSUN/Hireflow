@@ -1,0 +1,8 @@
+{
+  "name": "HireFlow AI",
+  "description": "Enterprise AI-driven recruitment platform featuring multi-model LLM integration, video interviewing, and automated screening.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

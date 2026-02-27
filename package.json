@@ -16,6 +16,7 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
+    "check:utf8": "node scripts/check-utf8.mjs",
     "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {

@@ -1,97 +1,43 @@
-# ==========================
-# HireFlow AI - Docker Compose
-# Full development environment
-# ==========================
+version: '3.8'
 
 services:
-  # ---- Frontend (Vite Dev Server) ----
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: deps
-    command: npm run dev -- --host 0.0.0.0
-    ports:
-      - "3000:3000"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://api:4000
-    depends_on:
-      - api
-
-  # ---- Backend API ----
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: deps
-    command: npx tsx --watch server/index.ts
-    ports:
-      - "4000:4000"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    environment:
-      - PORT=4000
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://hireflow:hireflow_secret@postgres:5432/hireflow
-      - REDIS_URL=redis://redis:6379
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # ---- PostgreSQL ----
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
+    container_name: hireflow-postgres
+    restart: always
     environment:
       POSTGRES_USER: hireflow
-      POSTGRES_PASSWORD: hireflow_secret
-      POSTGRES_DB: hireflow
+      POSTGRES_PASSWORD: hireflow_password
+      POSTGRES_DB: hireflow_db
+    ports:
+      - "5433:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U hireflow" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - postgres_data:/var/lib/postgresql/data
 
-  # ---- Redis ----
   redis:
     image: redis:7-alpine
+    container_name: hireflow-redis
+    restart: always
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes
     volumes:
-      - redisdata:/data
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - redis_data:/data
 
-  # ---- MinIO (S3-compatible storage) ----
   minio:
-    image: minio/minio:latest
+    image: minio/minio
+    container_name: hireflow-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: hireflow_minio
+      MINIO_ROOT_PASSWORD: hireflow_minio_password
     ports:
       - "9000:9000"
       - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: hireflow_minio
-      MINIO_ROOT_PASSWORD: hireflow_minio_secret
     volumes:
-      - miniodata:/data
-    command: server /data --console-address ":9001"
+      - minio_data:/data
 
 volumes:
-  pgdata:
-  redisdata:
-  miniodata:
+  postgres_data:
+  redis_data:
+  minio_data:

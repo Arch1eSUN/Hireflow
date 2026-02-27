@@ -1,25 +1,18 @@
-// HireFlow AI — 面试间
+// HireFlow AI — 面试间 (AI Interviewer Mode)
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Camera, CameraOff, PhoneOff, MessageCircle, Clock, Code } from 'lucide-react';
+import { Clock, Code } from 'lucide-react';
 import { useI18n } from '@hireflow/i18n/src/react';
-import type { ChatMessage } from '@hireflow/types';
+import AIAudioVisualizer from '../components/AIAudioVisualizer';
 
 const InterviewRoomPage: React.FC = () => {
     const { token } = useParams<{ token: string }>();
     const navigate = useNavigate();
     const { t } = useI18n();
-    const [micOn, setMicOn] = useState(true);
-    const [cameraOn, setCameraOn] = useState(true);
     const [elapsed, setElapsed] = useState(0);
-    const [showChat, setShowChat] = useState(true);
-    const chatEndRef = useRef<HTMLDivElement>(null);
-
-    // 模拟对话
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        { id: '1', role: 'assistant', content: '你好！欢迎参加这次技术面试。我是 HireFlow AI 面试官。请先做一个简短的自我介绍吧。', timestamp: Date.now() },
-    ]);
+    const [isAISpeaking, setIsAISpeaking] = useState(false);
+    const [aiText, setAiText] = useState("AI Interviewer is listening...");
+    const ws = useRef<WebSocket | null>(null);
 
     // 计时器
     useEffect(() => {
@@ -27,10 +20,34 @@ const InterviewRoomPage: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // 自动滚动到底部
+    // WebSocket 连接
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        const socket = new WebSocket('ws://localhost:4000/api/ws/interview/stream');
+        ws.current = socket;
+
+        socket.onopen = () => {
+            console.log('Connected to AI Stream');
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'AI_SPEAKING') {
+                    setIsAISpeaking(true);
+                    setAiText(data.text);
+                } else if (data.type === 'AI_SILENT') {
+                    setIsAISpeaking(false);
+                    // setAiText("AI Interviewer is listening..."); // Optional: Reset text or keep last spoken
+                }
+            } catch (err) {
+                console.error('Failed to parse WS message', err);
+            }
+        };
+
+        return () => {
+            socket.close();
+        };
+    }, []);
 
     const formatElapsed = (s: number) => {
         const m = Math.floor(s / 60);
@@ -38,192 +55,73 @@ const InterviewRoomPage: React.FC = () => {
         return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
     };
 
-    const handleEnd = () => {
-        navigate(`/${token}/complete`);
-    };
-
     return (
-        <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#1a1a1a' }}>
+        <div className="min-h-screen flex flex-col bg-slate-950 font-sans text-slate-200">
             {/* 顶部信息栏 */}
-            <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: '#2a2a2a' }}>
+            <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 backdrop-blur-md sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-white text-sm font-medium">AI 技术面试 · 高级前端工程师</span>
+                    <span className="font-medium tracking-wide text-white">AI Interview Session</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/50">LIVE</span>
                 </div>
-                <div className="flex items-center gap-4 text-white text-sm">
-                    <span className="flex items-center gap-1">
-                        <Clock size={14} />
-                        {formatElapsed(elapsed)}
-                    </span>
-                    <span>{t('interview.room.question', { current: 1, total: 5 })}</span>
+                <div className="flex items-center gap-2 text-sm font-mono opacity-60">
+                    <Clock size={14} />
+                    {formatElapsed(elapsed)}
                 </div>
             </div>
 
-            {/* 主内容区 */}
-            <div className="flex-1 flex">
-                {/* 视频 / 主区域 */}
-                <div className="flex-1 flex flex-col items-center justify-center relative">
-                    {/* 候选人视频（模拟） */}
-                    <div
-                        className="w-[360px] h-[270px] rounded-2xl flex items-center justify-center"
-                        style={{ backgroundColor: '#333' }}
-                    >
-                        <div className="text-center">
-                            <div
-                                className="w-20 h-20 rounded-full mx-auto mb-3 flex items-center justify-center"
-                                style={{ backgroundColor: 'var(--color-primary-container)' }}
-                            >
-                                <span className="text-2xl font-bold" style={{ color: 'var(--color-primary)' }}>你</span>
-                            </div>
-                            {!cameraOn && (
-                                <p className="text-gray-400 text-sm">摄像头已关闭</p>
-                            )}
-                        </div>
+            {/* 主内容区 (Split Layout) */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* LEFT: Code Editor (Mock) */}
+                <div className="flex-1 border-r border-white/5 bg-slate-900/50 p-6 flex flex-col relative group">
+                    {/* Label */}
+                    <div className="absolute top-4 right-4 text-xs font-medium text-white/20 uppercase tracking-widest flex items-center gap-2">
+                        <Code size={14} /> Python 3.10
                     </div>
 
-                    {/* AI 头像小窗 */}
-                    <motion.div
-                        className="absolute top-6 right-6 w-32 h-24 rounded-xl flex items-center justify-center"
-                        style={{ backgroundColor: '#2a2a2a', border: '2px solid #444' }}
-                        animate={{ scale: [1, 1.02, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                    >
-                        <div className="text-center">
-                            <div className="w-10 h-10 rounded-full mx-auto flex items-center justify-center" style={{ backgroundColor: 'var(--color-primary)' }}>
-                                <span className="text-white text-sm font-bold">AI</span>
-                            </div>
-                            <p className="text-gray-400 text-xs mt-1">面试官</p>
+                    <div className="flex-1 bg-black/40 rounded-xl p-6 font-mono text-sm leading-relaxed overflow-hidden relative shadow-inner border border-white/5">
+                        <div className="text-emerald-400">
+                            <span className="text-pink-400">def</span> <span className="text-blue-400">solution</span>(arr):<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-slate-500"># Two pointer approach</span><br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;left, right = 0, len(arr) - 1<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-pink-400">while</span> left &lt; right:<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;current_sum = arr[left] + arr[right]<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-pink-400">if</span> current_sum == target:<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-pink-400">return</span> [left, right]<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-pink-400">elif</span> current_sum &lt; target:<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;left += 1<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-pink-400">else</span>:<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;right -= 1<br />
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-pink-400">return</span> []
                         </div>
-                    </motion.div>
+                        <div className="animate-pulse w-2 h-4 bg-white/50 inline-block ml-1 align-middle" />
+                    </div>
                 </div>
 
-                {/* 对话面板 */}
-                <AnimatePresence>
-                    {showChat && (
-                        <motion.div
-                            className="w-[380px] flex flex-col"
-                            style={{ backgroundColor: '#262626', borderLeft: '1px solid #3a3a3a' }}
-                            initial={{ width: 0, opacity: 0 }}
-                            animate={{ width: 380, opacity: 1 }}
-                            exit={{ width: 0, opacity: 0 }}
-                        >
-                            <div className="px-4 py-3 text-white text-sm font-medium" style={{ borderBottom: '1px solid #3a3a3a' }}>
-                                {t('interview.room.chatHistory')}
+                {/* RIGHT: AI Avatar & Interaction */}
+                <div className="flex-1 flex flex-col items-center justify-center relative p-8 bg-gradient-to-b from-slate-950 to-slate-900">
+                    <div className="relative mb-8 flex flex-col items-center gap-6">
+                        {/* Avatar Glow */}
+                        <div className="relative w-32 h-32">
+                            <div className={`absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 blur-xl opacity-80 transition-all duration-500 ${isAISpeaking ? 'scale-110' : 'animate-pulse'}`} />
+                            {/* Avatar Sphere */}
+                            <div className="absolute inset-0 rounded-full bg-slate-900 z-10 flex items-center justify-center ring-1 ring-white/10 shadow-2xl overflow-hidden">
+                                <div className="w-full h-full bg-gradient-to-tr from-blue-600/20 to-purple-600/20" />
                             </div>
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                {messages.map((msg) => (
-                                    <motion.div
-                                        key={msg.id}
-                                        initial={{ opacity: 0, y: 8 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                                    >
-                                        <div
-                                            className="max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed"
-                                            style={{
-                                                backgroundColor: msg.role === 'user' ? 'var(--color-primary)' : '#3a3a3a',
-                                                color: msg.role === 'user' ? 'white' : '#e0e0e0',
-                                                borderBottomRightRadius: msg.role === 'user' ? 4 : undefined,
-                                                borderBottomLeftRadius: msg.role === 'assistant' ? 4 : undefined,
-                                            }}
-                                        >
-                                            {msg.content}
-                                        </div>
-                                    </motion.div>
-                                ))}
-                                <div ref={chatEndRef} />
+
+                            {/* Audio Visualizer Overlay */}
+                            <div className="absolute inset-0 z-20 flex items-center justify-center">
+                                <AIAudioVisualizer isSpeaking={isAISpeaking} />
                             </div>
-                            <div className="p-3" style={{ borderTop: '1px solid #3a3a3a' }}>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder="输入文字回答..."
-                                        className="flex-1 h-10 px-4 rounded-full text-sm outline-none"
-                                        style={{ backgroundColor: '#3a3a3a', color: '#e0e0e0', border: 'none' }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
-                                                const val = (e.target as HTMLInputElement).value;
-                                                setMessages((prev) => [
-                                                    ...prev,
-                                                    { id: Date.now().toString(), role: 'user' as const, content: val, timestamp: Date.now() },
-                                                ]);
-                                                (e.target as HTMLInputElement).value = '';
-                                                // 模拟 AI 回复
-                                                setTimeout(() => {
-                                                    setMessages((prev) => [
-                                                        ...prev,
-                                                        {
-                                                            id: (Date.now() + 1).toString(),
-                                                            role: 'assistant' as const,
-                                                            content: '很好，谢谢你的回答。让我来问下一个问题：请描述一下你在前端架构设计中最有成就感的一个项目？',
-                                                            timestamp: Date.now(),
-                                                        },
-                                                    ]);
-                                                }, 1500);
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
+                        </div>
 
-            {/* 底部控制栏 */}
-            <div className="flex items-center justify-center gap-4 py-4" style={{ backgroundColor: '#2a2a2a' }}>
-                <button
-                    onClick={() => setMicOn(!micOn)}
-                    className="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
-                    style={{
-                        backgroundColor: micOn ? '#3a3a3a' : '#D93025',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-                </button>
-
-                <button
-                    onClick={() => setCameraOn(!cameraOn)}
-                    className="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
-                    style={{
-                        backgroundColor: cameraOn ? '#3a3a3a' : '#D93025',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    {cameraOn ? <Camera size={20} /> : <CameraOff size={20} />}
-                </button>
-
-                <button
-                    onClick={() => setShowChat(!showChat)}
-                    className="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
-                    style={{
-                        backgroundColor: showChat ? 'var(--color-primary)' : '#3a3a3a',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <MessageCircle size={20} />
-                </button>
-
-                <button
-                    onClick={handleEnd}
-                    className="h-12 px-6 rounded-full flex items-center justify-center gap-2 font-medium transition-colors"
-                    style={{
-                        backgroundColor: '#D93025',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <PhoneOff size={18} />
-                    {t('interview.room.endInterview')}
-                </button>
+                        <div className="text-center space-y-3 max-w-md">
+                            <p className="text-lg font-light tracking-wide text-white/90 min-h-[3rem]">
+                                {aiText}
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

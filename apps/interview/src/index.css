@@ -3,9 +3,9 @@
 /* 更温暖的色调，全沉浸式，无侧边栏                  */
 /* ================================================ */
 
-@import "tailwindcss";
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
 
 :root {
     /* 候选人端更温暖的色彩 */
@@ -27,8 +27,9 @@
     --color-accent: #6750A4;
     --color-accent-container: #EADDFF;
 
-    --font-display: 'Inter', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    /* Updated Fonts */
+    --font-display: 'Inter', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
 
     --radius-sm: 8px;
     --radius-md: 12px;
@@ -60,6 +61,15 @@ body {
     background-color: var(--color-surface-dim);
     color: var(--color-on-surface);
     min-height: 100vh;
+}
+
+/* Fix Text Overlap - Global Leading Adjustment */
+.text-2xl,
+.text-3xl,
+.text-4xl,
+.text-5xl,
+.text-6xl {
+    line-height: 1.1 !important;
 }
 
 /* 面试端特有动画 */

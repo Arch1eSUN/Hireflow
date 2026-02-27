@@ -1,0 +1,228 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Core Models ---
+
+model Company {
+  id           String           @id @default(uuid())
+  name         String
+  logo         String?          // MinIO URL
+  primaryColor String?          @default("#1A73E8")
+  welcomeText  String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt @default(now())
+  
+  users        User[]
+  jobs         Job[]
+  candidates   Candidate[]
+  settings     CompanySettings?
+  apiKeys      ApiKeyStore[]
+  integrations Integration[]
+  auditLogs    AuditLog[]
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  passwordHash  String?        // Bcrypt hash
+  role          String         @default("user") // owner | admin | hr_manager | interviewer | viewer
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  notifications Notification[]
+  evaluations   Evaluation[]
+}
+
+model CompanySettings {
+  id                     String  @id @default(uuid())
+  companyId              String  @unique
+  company                Company @relation(fields: [companyId], references: [id])
+  
+  // AI Configuration
+  defaultModelId         String?
+  technicalModelId       String?
+  resumeModelId          String?
+  reportModelId          String?
+  temperature            Float   @default(0.7)
+  maxTokens              Int     @default(8192)
+  
+  // Security
+  antiCheatEnabled       Boolean @default(true)
+  livenessDetection      Boolean @default(true)
+  multiFaceDetection     Boolean @default(true)
+  tabSwitchDetection     Boolean @default(true)
+  aiAnswerDetection      Boolean @default(false)
+  audioEnvironmentDetect Boolean @default(false)
+  dataEncryption         Boolean @default(true)
+  recordingRetentionDays Int     @default(90)
+  
+  // Notifications
+  emailOnInvite          Boolean @default(true)
+  emailOnReminder        Boolean @default(true)
+  emailOnComplete        Boolean @default(true)
+  emailOnStatusChange    Boolean @default(false)
+  
+  // Privacy
+  dataRetentionDays      Int     @default(90)
+  gdprEnabled            Boolean @default(false)
+}
+
+model ApiKeyStore {
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id])
+  provider     String    // "google" | "openai" | "anthropic" | "deepseek" | "alibaba" | "custom"
+  encryptedKey String    // AES-256-GCM Encrypted
+  baseUrl      String?
+  status       String    @default("disconnected") // "connected" | "disconnected" | "error"
+  cachedModels Json?     // List of available models
+  lastTestedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([companyId, provider])
+}
+
+model Integration {
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id])
+  type         String    // "google_calendar" | "outlook" | "wechat_work" | ...
+  config       Json      // { webhookUrl, apiKey, oauthToken... }
+  status       String    @default("disconnected")
+  lastTestedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// --- Recruitment Models ---
+
+model Job {
+  id             String      @id @default(uuid())
+  companyId      String
+  company        Company     @relation(fields: [companyId], references: [id])
+  title          String
+  department     String
+  location       String
+  type           String
+  descriptionJd  String
+  requirements   String[]
+  status         String
+  salaryRange    Json
+  candidateCount Int         @default(0)
+  pipeline       Json        // Stages definition
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  
+  candidates     Candidate[]
+  interviews     Interview[]
+}
+
+model Candidate {
+  id                 String   @id @default(uuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id])
+  jobId              String
+  job                Job      @relation(fields: [jobId], references: [id])
+  name               String
+  email              String
+  phone              String
+  stage              String
+  score              Int?
+  skills             String[]
+  appliedDate        DateTime @default(now())
+  verificationStatus String   @default("pending")
+  tags               String[]
+  source             String?
+  resumeUrl          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  interviews         Interview[]
+}
+
+model Interview {
+  id          String    @id @default(uuid())
+  jobId       String
+  job         Job       @relation(fields: [jobId], references: [id])
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  
+  token       String    @unique // Public access token
+  status      String    // upcoming | active | completed | cancelled
+  type        String    // ai_interview | technical | hr
+  startTime   DateTime
+  endTime     DateTime?
+  score       Int?
+  feedback    String?   // AI generated feedback summary
+  
+  recordingUrl  String? // MinIO URL
+  transcriptUrl String? // MinIO URL
+  reportUrl     String? // MinIO URL
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  feedbacks   InterviewFeedback[]
+  evaluations Evaluation[]
+}
+
+model InterviewFeedback {
+  id          String    @id @default(uuid())
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id])
+  rating      Int       // 1-5 (Candidate satisfaction)
+  comment     String?
+  createdAt   DateTime  @default(now())
+}
+
+model Evaluation {
+  id          String    @id @default(uuid())
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id])
+  evaluatorId String    // UserId or 'AI'
+  evaluator   User?     @relation(fields: [evaluatorId], references: [id])
+  scores      Json      // { technical: 85, communication: 90... }
+  comment     String?
+  vote        String?   // "hire" | "maybe" | "reject"
+  createdAt   DateTime  @default(now())
+}
+
+// --- System Models ---
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  userId     String?
+  action     String   // "candidate.stage_changed"
+  targetType String?  // "candidate"
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  body      String   // renamed from message to match prompt
+  read      Boolean  @default(false)
+  actionUrl String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}

@@ -1,34 +1,42 @@
 // ================================================
 // HireFlow AI — 候选人列表页
 // ================================================
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, UserPlus, Grid3X3, List, ChevronDown, X } from 'lucide-react';
+import { Search, UserPlus, Grid3X3, List, X, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useI18n } from '@hireflow/i18n/src/react';
-import { MOCK_CANDIDATES, MOCK_JOBS } from '@/data/mockData';
-import type { CandidateStage } from '@hireflow/types';
+import api from '@/lib/api';
+import { useDebounce } from '@/hooks/useDebounce';
+import { AddCandidateModal } from '@/components/candidates/AddCandidateModal';
+import { EmptyState } from '@/components/ui/EmptyState';
 
-const STAGES: CandidateStage[] = ['applied', 'screening', 'interview_1', 'interview_2', 'offer', 'hired', 'rejected'];
+const STAGES = ['applied', 'screening', 'interview_1', 'interview_2', 'offer', 'hired', 'rejected'];
 
 const CandidatesPage: React.FC = () => {
     const { t } = useI18n();
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedStage, setSelectedStage] = useState<CandidateStage | 'all'>('all');
+    const [selectedStage, setSelectedStage] = useState<string>('all');
     const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showAddModal, setShowAddModal] = useState(false);
 
-    const filteredCandidates = useMemo(() => {
-        return MOCK_CANDIDATES.filter((c) => {
-            const matchSearch = !searchQuery ||
-                c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                c.skills.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()));
-            const matchStage = selectedStage === 'all' || c.stage === selectedStage;
-            return matchSearch && matchStage;
-        });
-    }, [searchQuery, selectedStage]);
+    const debouncedSearch = useDebounce(searchQuery, 300);
+
+    const { data, isLoading, error } = useQuery({
+        queryKey: ['candidates', debouncedSearch, selectedStage],
+        queryFn: async () => {
+            const params: any = {};
+            if (debouncedSearch) params.search = debouncedSearch;
+            if (selectedStage !== 'all') params.stage = selectedStage;
+            const res = await api.get('/candidates', { params });
+            return res.data.data;
+        },
+    });
+
+    const candidates = data || [];
 
     const toggleSelect = (id: string) => {
         setSelectedIds((prev) => {
@@ -44,7 +52,7 @@ const CandidatesPage: React.FC = () => {
             {/* 页头 */}
             <div className="flex items-center justify-between">
                 <h1 className="text-headline-large">{t('candidates.title')}</h1>
-                <button className="btn btn-filled">
+                <button className="btn btn-filled" onClick={() => setShowAddModal(true)}>
                     <UserPlus size={18} />
                     {t('candidates.addCandidate')}
                 </button>
@@ -67,7 +75,7 @@ const CandidatesPage: React.FC = () => {
                         }}
                     />
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap">
                     <button
                         className={`chip cursor-pointer ${selectedStage === 'all' ? 'chip-primary' : 'chip-neutral'}`}
                         onClick={() => setSelectedStage('all')}
@@ -88,7 +96,7 @@ const CandidatesPage: React.FC = () => {
                 </div>
                 <div className="flex gap-1 ml-auto">
                     <button
-                        className={`btn-icon ${viewMode === 'list' ? '' : ''}`}
+                        className="btn-icon"
                         onClick={() => setViewMode('list')}
                         style={{ backgroundColor: viewMode === 'list' ? 'var(--color-primary-container)' : undefined, color: viewMode === 'list' ? 'var(--color-primary)' : undefined }}
                     >
@@ -127,33 +135,45 @@ const CandidatesPage: React.FC = () => {
                 )}
             </AnimatePresence>
 
+            {/* Loading */}
+            {isLoading && (
+                <div className="flex items-center justify-center py-16">
+                    <div className="w-8 h-8 rounded-full border-4 animate-spin"
+                        style={{ borderColor: 'var(--color-outline)', borderTopColor: 'var(--color-primary)' }} />
+                </div>
+            )}
+
+            {/* Error */}
+            {error && (
+                <div className="text-center py-8" style={{ color: 'var(--color-error)' }}>加载失败: {(error as any).message}</div>
+            )}
+
             {/* 候选人列表 */}
-            <div className="card p-0 overflow-hidden">
-                <table className="table">
-                    <thead>
-                        <tr>
-                            <th style={{ width: 40 }}>
-                                <input
-                                    type="checkbox"
-                                    checked={selectedIds.size === filteredCandidates.length && filteredCandidates.length > 0}
-                                    onChange={() => {
-                                        if (selectedIds.size === filteredCandidates.length) setSelectedIds(new Set());
-                                        else setSelectedIds(new Set(filteredCandidates.map((c) => c.id)));
-                                    }}
-                                />
-                            </th>
-                            <th>{t('common.name')}</th>
-                            <th>岗位</th>
-                            <th>{t('common.status')}</th>
-                            <th>匹配分</th>
-                            <th>来源</th>
-                            <th>投递时间</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredCandidates.map((c, i) => {
-                            const job = MOCK_JOBS.find((j) => j.id === c.jobId);
-                            return (
+            {!isLoading && !error && (
+                <div className="card p-0 overflow-hidden">
+                    <table className="table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 40 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.size === candidates.length && candidates.length > 0}
+                                        onChange={() => {
+                                            if (selectedIds.size === candidates.length) setSelectedIds(new Set());
+                                            else setSelectedIds(new Set(candidates.map((c: any) => c.id)));
+                                        }}
+                                    />
+                                </th>
+                                <th>{t('common.name')}</th>
+                                <th>岗位</th>
+                                <th>{t('common.status')}</th>
+                                <th>匹配分</th>
+                                <th>来源</th>
+                                <th>投递时间</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {candidates.map((c: any, i: number) => (
                                 <motion.tr
                                     key={c.id}
                                     initial={{ opacity: 0 }}
@@ -175,7 +195,7 @@ const CandidatesPage: React.FC = () => {
                                                 className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0"
                                                 style={{ backgroundColor: 'var(--color-primary-container)', color: 'var(--color-primary)' }}
                                             >
-                                                {c.name.charAt(0)}
+                                                {c.name?.charAt(0) || '?'}
                                             </div>
                                             <div>
                                                 <p className="text-label-large">{c.name}</p>
@@ -183,36 +203,46 @@ const CandidatesPage: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="text-body-medium">{job?.title || '-'}</td>
+                                    <td className="text-body-medium">{c.job?.title || '-'}</td>
                                     <td>
                                         <span className={`chip chip-${c.stage === 'offer' || c.stage === 'hired' ? 'success' :
-                                                c.stage === 'rejected' ? 'error' :
-                                                    c.stage === 'applied' ? 'neutral' : 'primary'
+                                            c.stage === 'rejected' ? 'error' :
+                                                c.stage === 'applied' ? 'neutral' : 'primary'
                                             }`}>
                                             {t(`stage.${c.stage}`)}
                                         </span>
                                     </td>
                                     <td>
-                                        <span className={`font-medium ${c.score >= 90 ? 'text-green-600' :
-                                                c.score >= 75 ? 'text-blue-600' :
-                                                    c.score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                                        <span className={`font-medium ${(c.score || 0) >= 90 ? 'text-green-600' :
+                                            (c.score || 0) >= 75 ? 'text-blue-600' :
+                                                (c.score || 0) >= 60 ? 'text-yellow-600' : 'text-red-600'
                                             }`}>
-                                            {c.score}
+                                            {c.score || '-'}
                                         </span>
                                     </td>
                                     <td className="text-body-medium">{c.source || '-'}</td>
-                                    <td className="text-label-small" style={{ color: 'var(--color-on-surface-variant)' }}>{c.appliedDate}</td>
+                                    <td className="text-label-small" style={{ color: 'var(--color-on-surface-variant)' }}>
+                                        {c.appliedAt ? new Date(c.appliedAt).toLocaleDateString() : c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '-'}
+                                    </td>
                                 </motion.tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-                {filteredCandidates.length === 0 && (
-                    <div className="flex items-center justify-center py-16" style={{ color: 'var(--color-on-surface-variant)' }}>
-                        <p className="text-body-large">{t('common.noData')}</p>
-                    </div>
-                )}
-            </div>
+                            ))}
+                        </tbody>
+                    </table>
+                    {candidates.length === 0 && (
+                        <EmptyState
+                            icon={Users}
+                            title={t('candidates.emptyTitle') || '暂无候选人'}
+                            subtitle={t('candidates.emptySubtitle') || '添加您的第一位候选人，开始管理招聘流程'}
+                            actionLabel={t('candidates.addCandidate')}
+                            actionIcon={UserPlus}
+                            onAction={() => setShowAddModal(true)}
+                        />
+                    )}
+                </div>
+            )}
+
+            {/* Add Candidate Modal */}
+            <AddCandidateModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
         </div>
     );
 };

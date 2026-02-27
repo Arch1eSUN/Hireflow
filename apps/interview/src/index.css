@@ -1,108 +1,199 @@
 /* ================================================ */
-/* HireFlow AI — 候选人面试端 设计系统              */
-/* 更温暖的色调，全沉浸式，无侧边栏                  */
+/* HireFlow AI — Enterprise Design System (v3.0)    */
+/* Style: Google Cloud Console (Minimal, Data-First)*/
+/* Shared with Portal for Consistency               */
 /* ================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@import "@hireflow/utils/src/theme.css";
 
-:root {
-    /* 候选人端更温暖的色彩 */
-    --color-primary: #1A73E8;
-    --color-primary-hover: #1765CC;
-    --color-primary-container: #D2E3FC;
-    --color-on-primary: #FFFFFF;
-    --color-surface: #FFFFFF;
-    --color-surface-dim: #FAFAF9;
-    --color-surface-variant: #F5F3F0;
-    --color-on-surface: #1C1B1F;
-    --color-on-surface-variant: #49454F;
-    --color-outline: #E0DCD7;
-    --color-success: #1E8E3E;
-    --color-success-container: #E6F4EA;
-    --color-error: #D93025;
-    --color-error-container: #FCE8E6;
-    --color-warning: #F9AB00;
-    --color-accent: #6750A4;
-    --color-accent-container: #EADDFF;
-
-    /* Updated Fonts */
-    --font-display: 'Inter', system-ui, sans-serif;
-    --font-body: 'Inter', system-ui, sans-serif;
-
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 24px;
-    --radius-full: 9999px;
-
-    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-    --duration-micro: 150ms;
-    --duration-standard: 300ms;
-    --duration-emphasis: 500ms;
-}
-
-*,
-*::before,
-*::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
-html {
-    font-size: 16px;
+/* Base Reset */
+body {
+    font-family: var(--font-sans);
+    background-color: var(--color-surface-dim);
+    color: var(--color-text-primary);
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
 
-body {
-    font-family: var(--font-body);
-    background-color: var(--color-surface-dim);
-    color: var(--color-on-surface);
-    min-height: 100vh;
+/* Typography Utility Classes */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--color-text-primary);
+    font-weight: 500;
+    letter-spacing: -0.01em;
 }
 
-/* Fix Text Overlap - Global Leading Adjustment */
-.text-2xl,
-.text-3xl,
-.text-4xl,
-.text-5xl,
-.text-6xl {
-    line-height: 1.1 !important;
+.text-display {
+    font-size: 24px;
+    line-height: 32px;
 }
 
-/* 面试端特有动画 */
-@keyframes breathe {
+.text-headline {
+    font-size: 20px;
+    line-height: 28px;
+}
 
-    0%,
+.text-title {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 500;
+}
+
+.text-body {
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.text-small {
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.text-mono {
+    font-family: var(--font-mono);
+}
+
+.text-secondary {
+    color: var(--color-text-secondary);
+}
+
+/* Components: Buttons (Structured) */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    /* Interview app buttons slightly larger for focus */
+    padding: 0 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+    user-select: none;
+}
+
+.btn-filled {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn-filled:hover {
+    background-color: var(--color-primary-hover);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.btn-outlined {
+    background-color: transparent;
+    border: 1px solid var(--color-outline);
+    color: var(--color-primary);
+}
+
+.btn-outlined:hover {
+    background-color: var(--color-surface-hover);
+    border-color: var(--color-primary);
+}
+
+.btn-text {
+    background: transparent;
+    color: var(--color-primary);
+    padding: 0 12px;
+}
+
+.btn-text:hover {
+    background-color: var(--color-primary-container);
+}
+
+.btn-danger {
+    background-color: var(--color-error);
+    color: white;
+}
+
+.btn-danger:hover {
+    opacity: 0.9;
+}
+
+/* Components: Inputs */
+.input {
+    width: 100%;
+    height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-outline);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    transition: border 0.1s;
+}
+
+.input:focus {
+    outline: none;
+    border: 2px solid var(--color-primary);
+    padding: 7px 11px;
+}
+
+/* Components: Cards */
+.card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-outline);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    box-shadow: var(--shadow-card);
+}
+
+/* Components: Steps */
+.step-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-secondary);
+}
+
+.step-item.active {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.step-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.step-item.active .step-circle {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+/* Interview Specific Animations */
+@keyframes pulse-ring {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+
     100% {
-        transform: scale(1);
-        opacity: 0.8;
-    }
-
-    50% {
-        transform: scale(1.05);
-        opacity: 1;
-    }
-}
-
-@keyframes slideInFromBottom {
-    from {
+        transform: scale(2);
         opacity: 0;
-        transform: translateY(24px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
     }
 }
 
-.animate-breathe {
-    animation: breathe 3s ease-in-out infinite;
-}
-
-.animate-slide-in {
-    animation: slideInFromBottom var(--duration-emphasis) var(--ease-standard) forwards;
+.animate-pulse-ring {
+    animation: pulse-ring 2s cubic-bezier(0.2, 0, 0, 1) infinite;
 }

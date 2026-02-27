@@ -28,6 +28,7 @@ model Company {
   apiKeys      ApiKeyStore[]
   integrations Integration[]
   auditLogs    AuditLog[]
+  screeningRules ScreeningRule[]
 }
 
 model User {
@@ -35,6 +36,7 @@ model User {
   email         String         @unique
   name          String
   passwordHash  String?        // Bcrypt hash
+  tokenVersion  Int            @default(0)
   role          String         @default("user") // owner | admin | hr_manager | interviewer | viewer
   companyId     String
   company       Company        @relation(fields: [companyId], references: [id])
@@ -43,6 +45,8 @@ model User {
   
   notifications Notification[]
   evaluations   Evaluation[]
+
+  @@index([companyId])
 }
 
 model CompanySettings {
@@ -84,7 +88,9 @@ model ApiKeyStore {
   companyId    String
   company      Company   @relation(fields: [companyId], references: [id])
   provider     String    // "google" | "openai" | "anthropic" | "deepseek" | "alibaba" | "custom"
-  encryptedKey String    // AES-256-GCM Encrypted
+  keyName      String    @default("default")
+  isActive     Boolean   @default(false)
+  encryptedKey String    // AES-256-GCM Encrypted (includes IV and AuthTag)
   baseUrl      String?
   status       String    @default("disconnected") // "connected" | "disconnected" | "error"
   cachedModels Json?     // List of available models
@@ -92,7 +98,8 @@ model ApiKeyStore {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@unique([companyId, provider])
+  @@unique([companyId, provider, keyName])
+  @@index([companyId, provider, isActive])
 }
 
 model Integration {
@@ -105,6 +112,23 @@ model Integration {
   lastTestedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([companyId])
+}
+
+model ScreeningRule {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  jobId       String?
+  conditions  Json
+  isTemplate  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId, jobId])
 }
 
 // --- Recruitment Models ---
@@ -128,6 +152,8 @@ model Job {
   
   candidates     Candidate[]
   interviews     Interview[]
+
+  @@index([companyId, status])
 }
 
 model Candidate {
@@ -151,6 +177,10 @@ model Candidate {
   updatedAt          DateTime @updatedAt
   
   interviews         Interview[]
+
+  @@index([companyId, jobId])
+  @@index([companyId, stage])
+  @@index([email])
 }
 
 model Interview {
@@ -167,6 +197,7 @@ model Interview {
   endTime     DateTime?
   score       Int?
   feedback    String?   // AI generated feedback summary
+  aiModel     String?   // Added to track used model
   
   recordingUrl  String? // MinIO URL
   transcriptUrl String? // MinIO URL
@@ -177,6 +208,23 @@ model Interview {
   
   feedbacks   InterviewFeedback[]
   evaluations Evaluation[]
+  messages    InterviewMessage[]
+
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([status])
+}
+
+model InterviewMessage {
+  id          String    @id @default(uuid())
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id])
+  role        String    // "user" | "assistant" | "system"
+  content     String
+  metadata    Json?     // tokens, sentiment, etc.
+  createdAt   DateTime  @default(now())
+
+  @@index([interviewId])
 }
 
 model InterviewFeedback {
@@ -186,6 +234,8 @@ model InterviewFeedback {
   rating      Int       // 1-5 (Candidate satisfaction)
   comment     String?
   createdAt   DateTime  @default(now())
+
+  @@index([interviewId])
 }
 
 model Evaluation {
@@ -198,6 +248,9 @@ model Evaluation {
   comment     String?
   vote        String?   // "hire" | "maybe" | "reject"
   createdAt   DateTime  @default(now())
+
+  @@index([interviewId])
+  @@index([evaluatorId])
 }
 
 // --- System Models ---
@@ -212,6 +265,10 @@ model AuditLog {
   targetId   String?
   metadata   Json?
   createdAt  DateTime @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([targetType, targetId])
 }
 
 model Notification {
@@ -225,4 +282,6 @@ model Notification {
   actionUrl String?
   metadata  Json?
   createdAt DateTime @default(now())
+
+  @@index([userId, read])
 }

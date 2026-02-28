@@ -22,6 +22,12 @@
         "paths": {
             "@/*": [
                 "./src/*"
+            ],
+            "@hireflow/i18n/*": [
+                "../../packages/shared/i18n/src/*"
+            ],
+            "@hireflow/types": [
+                "../../packages/shared/types/src/index.ts"
             ]
         },
         "baseUrl": "."

@@ -49,6 +49,7 @@ export interface InterviewEvidenceCenterProps extends InterviewTimelinePanelProp
     evidenceChainPolicyDiffRows: any[];
 
     handleExportEvidence: (mode: EvidenceExportMode | 'all') => void;
+    handleDownloadPDF: () => void;
     logEvidenceExportMutation: UseMutationResult<any, any, any>;
     isEvidenceExportBlocked: boolean;
     lastEvidenceExportAt: string | null;
@@ -352,7 +353,13 @@ export const InterviewEvidenceCenter: React.FC<InterviewEvidenceCenterProps> = (
 
                 <div className="mt-3 flex flex-wrap gap-2">
                     <button
-                        className="btn btn-filled h-7 px-2 text-[10px]"
+                        className="btn btn-filled h-7 px-2 text-[10px] bg-[var(--color-primary)] text-white"
+                        onClick={props.handleDownloadPDF}
+                    >
+                        <FileText size={12} /> Download PDF
+                    </button>
+                    <button
+                        className="btn btn-outlined h-7 px-2 text-[10px]"
                         onClick={() => props.handleExportEvidence('all')}
                         disabled={props.logEvidenceExportMutation.isPending || props.isEvidenceExportBlocked}
                     >

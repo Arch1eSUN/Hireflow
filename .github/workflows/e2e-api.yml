@@ -1,0 +1,64 @@
+name: API E2E
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  e2e-api:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hireflow
+          POSTGRES_PASSWORD: hireflow_password
+          POSTGRES_DB: hireflow_db
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U hireflow -d hireflow_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://hireflow:hireflow_password@localhost:5433/hireflow_db?schema=public
+      JWT_SECRET: hireflow_ci_jwt_secret_32_chars!!
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
+      AUTH_COOKIE_SAMESITE: lax
+      AUTH_COOKIE_SECURE: "false"
+      HIREFLOW_BASE_URL: http://localhost:4000
+      HIREFLOW_E2E_AUTO_DB_START: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Prisma Generate
+        run: npm --workspace @hireflow/server exec prisma generate --schema prisma/schema.prisma
+
+      - name: Prisma Migrate Deploy
+        run: npm --workspace @hireflow/server exec prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Build
+        run: npm run build
+
+      - name: Run API E2E Suites
+        run: npm run test:e2e:all

@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import { I18nProvider } from '@hireflow/i18n/src/react';
+import { I18nProvider } from '@hireflow/i18n/react';
 import './index.css';
 
 const rootElement = document.getElementById('root');

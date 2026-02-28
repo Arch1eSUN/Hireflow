@@ -137,6 +137,100 @@ npm run dev:interview
 npm run dev:server
 ```
 
+### 4. API E2E Test (Auth + Monitor Policy + XiaoFan Voice Path)
+
+```bash
+# One-command mode:
+# - Runs timeline-link compatibility precheck
+# - Checks /api/health
+# - Auto-builds and auto-starts server when needed
+# - Tries to auto-start postgres via docker compose
+npm run test:e2e:api
+
+# Direct mode (requires server already running)
+npm run test:e2e:api:direct
+
+# Core smoke suite (job -> candidate -> interview -> monitor -> integrity)
+# - Includes timeline-link compatibility precheck
+npm run test:e2e:smoke
+
+# Voice-path suite (startup readiness + websocket dialogue with XiaoFan)
+# - Includes timeline-link compatibility precheck
+npm run test:e2e:voice
+
+# Screening isolation suite (cross-tenant access guard for screening APIs)
+npm run test:e2e:screening:direct
+
+# Timeline link compatibility check (legacy -> v2 query migration rules)
+npm run test:timeline-link:compat
+
+# Run all suites sequentially (includes timeline-link compat precheck):
+# auth/policy + core smoke + screening isolation + voice path
+npm run test:e2e:all
+```
+
+Optional environment variables:
+
+```bash
+# Target API base URL (default http://localhost:4000)
+HIREFLOW_BASE_URL=http://localhost:4000
+
+# Disable docker auto-start for postgres (default: enabled)
+HIREFLOW_E2E_AUTO_DB_START=false
+
+# Force voice-path suite to fail (instead of skip) when no valid AI key is configured
+HIREFLOW_E2E_REQUIRE_AI_KEY=true
+
+# Optional explicit provider/key bootstrap for voice-path suite
+HIREFLOW_E2E_AI_PROVIDER=openai
+HIREFLOW_E2E_AI_KEY=sk-xxx
+HIREFLOW_E2E_AI_BASE_URL=https://api.openai.com/v1
+HIREFLOW_E2E_AI_MODEL=gpt-4o
+```
+
+Evidence chain verification API (new):
+
+```bash
+GET /api/interviews/:id/evidence-chain/verify?limit=500
+```
+
+The endpoint verifies the interview evidence hash-chain and returns:
+- `status`: `valid | partial | broken | not_initialized`
+- `linkedEvents` / `checkedEvents`
+- `latestHash`, `latestSeq`, and `brokenAt` (if broken)
+
+Company export guardrail policy:
+
+```bash
+GET /api/settings/evidence-chain-policy
+PUT /api/settings/evidence-chain-policy
+GET /api/settings/evidence-chain-policy/history?limit=20
+POST /api/settings/evidence-chain-policy/rollback
+```
+
+Policy save / rollback endpoints support optional request fields:
+- `reason` (string, audit note)
+- `idempotencyKey` (string, deduplicates repeated submit/retry)
+
+The same optional fields are also supported on company monitor template policy APIs:
+- `PUT /api/settings/monitor-policy`
+- `POST /api/settings/monitor-policy/rollback`
+
+Interview-level monitor policy APIs also support these optional fields:
+- `PUT /api/interviews/:id/monitor-policy`
+- `POST /api/interviews/:id/monitor-policy/rollback`
+
+When enabled, server-side evidence export writes are blocked if chain state is `broken` (and optionally `partial`).
+
+Realtime update event (monitor websocket):
+
+```bash
+type: company_evidence_chain_policy_updated
+type: company_monitor_policy_template_updated
+```
+
+The monitor side receives these events after save/rollback and refreshes policy state + history.
+
 ---
 
 ## 🤖 AI Context (For LLM Agents)

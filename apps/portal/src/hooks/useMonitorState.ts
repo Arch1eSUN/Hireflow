@@ -10,6 +10,16 @@ import {
 export function useMonitorState(id: string | undefined, token: string | null | undefined) {
     const isReady = !!id && !!token;
 
+    const interviewQuery = useQuery({
+        queryKey: ['interview-detail', id],
+        queryFn: async () => {
+            const res = await api.get(`/interviews/${id}`);
+            return res.data.data;
+        },
+        enabled: isReady,
+        refetchInterval: 30000,
+    });
+
     const integrityQuery = useQuery<IntegrityInsight>({
         queryKey: ['interview-integrity', id],
         queryFn: async () => {
@@ -129,6 +139,7 @@ export function useMonitorState(id: string | undefined, token: string | null | u
     });
 
     return {
+        interviewQuery,
         integrityQuery,
         roomStateQuery,
         monitorAlertsQuery,

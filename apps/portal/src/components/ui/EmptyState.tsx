@@ -1,18 +1,15 @@
-// ================================================
-// HireFlow AI — EmptyState (Reusable Empty View)
-// M3 Design: Icon in tinted circle, title, subtitle, optional CTA
-// ================================================
 import React from 'react';
-import { motion } from 'framer-motion';
 import { type LucideIcon } from 'lucide-react';
+import { cn } from '@hireflow/utils/src/index';
 
 interface EmptyStateProps {
-    icon: LucideIcon;
+    icon?: LucideIcon;
     title: string;
     subtitle?: string;
     actionLabel?: string;
     actionIcon?: LucideIcon;
     onAction?: () => void;
+    className?: string;
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
@@ -22,39 +19,33 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     actionLabel,
     actionIcon: ActionIcon,
     onAction,
+    className
 }) => {
     return (
-        <motion.div
-            className="empty-state"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }}
-        >
-            {/* Tinted icon circle */}
-            <div className="empty-state__icon-ring">
-                <div className="empty-state__icon-bg">
-                    <Icon size={32} className="empty-state__icon" />
+        <div className={cn("flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500", className)}>
+            {/* Icon Circle */}
+            {Icon && (
+                <div className="w-16 h-16 rounded-full bg-[var(--color-surface-dim)] flex items-center justify-center mb-4">
+                    <Icon size={32} className="text-[var(--color-text-secondary)] opacity-50" />
                 </div>
-            </div>
+            )}
 
-            {/* Text */}
-            <h3 className="empty-state__title">{title}</h3>
+            {/* Content */}
+            <h3 className="text-[16px] font-medium text-[var(--color-text-primary)] mb-1">{title}</h3>
             {subtitle && (
-                <p className="empty-state__subtitle">{subtitle}</p>
+                <p className="text-[13px] text-[var(--color-text-secondary)] max-w-sm mb-6">{subtitle}</p>
             )}
 
-            {/* Action CTA */}
+            {/* Action */}
             {actionLabel && onAction && (
-                <motion.button
-                    className="btn btn-filled empty-state__action"
+                <button
+                    className="btn btn-filled"
                     onClick={onAction}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                 >
-                    {ActionIcon && <ActionIcon size={18} />}
+                    {ActionIcon && <ActionIcon size={16} />}
                     {actionLabel}
-                </motion.button>
+                </button>
             )}
-        </motion.div>
+        </div>
     );
 };

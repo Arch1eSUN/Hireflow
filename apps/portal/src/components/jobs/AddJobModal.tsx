@@ -1,12 +1,14 @@
 // HireFlow AI — Add Job Modal (React Hook Form + Zod + M3 Filled Inputs)
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Briefcase, Loader2 } from 'lucide-react';
+import { X, Briefcase, Loader2, ChevronDown } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useI18n } from '@hireflow/i18n/react';
+import { cn } from '@hireflow/utils/src/index';
 import api from '@/lib/api';
 
 const jobSchema = z.object({
@@ -40,6 +42,7 @@ const modalVariants = {
 
 export const AddJobModal: React.FC<AddJobModalProps> = ({ isOpen, onClose }) => {
     const queryClient = useQueryClient();
+    const { t } = useI18n();
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm({
         resolver: zodResolver(jobSchema),
@@ -67,12 +70,12 @@ export const AddJobModal: React.FC<AddJobModalProps> = ({ isOpen, onClose }) => 
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['jobs'] });
-            toast.success('岗位创建成功！');
+            toast.success(t('jobs.toast.success'));
             reset();
             onClose();
         },
         onError: (err: any) => {
-            toast.error(err.response?.data?.error || '创建失败，请重试');
+            toast.error(err.response?.data?.error || t('jobs.toast.fail'));
         },
     });
 
@@ -88,114 +91,150 @@ export const AddJobModal: React.FC<AddJobModalProps> = ({ isOpen, onClose }) => 
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    className="fixed inset-0 z-50 flex items-center justify-center"
-                    variants={overlayVariants}
+                    className="absolute inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 sm:p-6"
                     initial="hidden"
                     animate="visible"
-                    exit="hidden"
+                    exit="exit"
                 >
                     <motion.div
                         className="absolute inset-0"
                         style={{ backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+                        variants={overlayVariants}
                         onClick={onClose}
                     />
 
                     <motion.div
-                        className="relative w-full max-w-lg mx-4 overflow-hidden"
-                        style={{
-                            backgroundColor: 'var(--color-surface)',
-                            borderRadius: '24px',
-                            boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
-                        }}
+                        className="relative w-full max-w-2xl bg-[var(--color-surface)] rounded-[16px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
                         variants={modalVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--color-outline-variant)' }}>
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-outline)] bg-[var(--color-surface-dim)] shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-primary-container)' }}>
-                                    <Briefcase size={20} style={{ color: 'var(--color-primary)' }} />
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--color-primary-container)] text-[var(--color-primary)]">
+                                    <Briefcase size={20} />
                                 </div>
-                                <h2 className="text-title-large">创建岗位</h2>
+                                <h2 className="text-[18px] font-semibold text-[var(--color-text-primary)]">{t('jobs.addTitle')}</h2>
                             </div>
-                            <button className="btn-icon" onClick={onClose}><X size={20} /></button>
+                            <button className="btn-icon w-8 h-8 hover:bg-[var(--color-surface-hover)] rounded-full transition-colors" onClick={onClose}>
+                                <X size={20} />
+                            </button>
                         </div>
 
-                        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
-                            {/* Title */}
-                            <div>
-                                <label className="m3-label">职位名称 *</label>
-                                <input {...register('title')} className={`m3-input ${errors.title ? 'm3-input--error' : ''}`} placeholder="例: 高级前端工程师" />
-                                {errors.title && <p className="m3-error">{errors.title.message}</p>}
-                            </div>
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <form id="add-job-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                                {/* Title */}
+                                <div>
+                                    <label className="m3-label">{t('jobs.field.title')} <span className="text-[var(--color-error)]">*</span></label>
+                                    <input
+                                        {...register('title')}
+                                        className={cn("m3-input h-10", errors.title && "m3-input--error")}
+                                        placeholder={t('jobs.placeholder.title')}
+                                    />
+                                    {errors.title && <p className="m3-error">{errors.title.message}</p>}
+                                </div>
 
-                            {/* Department + Location */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="m3-label">部门 *</label>
-                                    <input {...register('department')} className={`m3-input ${errors.department ? 'm3-input--error' : ''}`} placeholder="技术部" />
-                                    {errors.department && <p className="m3-error">{errors.department.message}</p>}
+                                {/* Department + Location */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label className="m3-label">{t('jobs.field.department')} <span className="text-[var(--color-error)]">*</span></label>
+                                        <input
+                                            {...register('department')}
+                                            className={cn("m3-input h-10", errors.department && "m3-input--error")}
+                                            placeholder={t('jobs.placeholder.department')}
+                                        />
+                                        {errors.department && <p className="m3-error">{errors.department.message}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="m3-label">{t('jobs.field.location')} <span className="text-[var(--color-error)]">*</span></label>
+                                        <input
+                                            {...register('location')}
+                                            className={cn("m3-input h-10", errors.location && "m3-input--error")}
+                                            placeholder={t('jobs.placeholder.location')}
+                                        />
+                                        {errors.location && <p className="m3-error">{errors.location.message}</p>}
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="m3-label">工作地点 *</label>
-                                    <input {...register('location')} className={`m3-input ${errors.location ? 'm3-input--error' : ''}`} placeholder="北京" />
-                                    {errors.location && <p className="m3-error">{errors.location.message}</p>}
-                                </div>
-                            </div>
 
-                            {/* Status + Requirements */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="m3-label">状态</label>
-                                    <select {...register('status')} className="m3-input">
-                                        <option value="draft">草稿</option>
-                                        <option value="active">招聘中</option>
-                                        <option value="closed">已关闭</option>
-                                    </select>
+                                {/* Status + Requirements */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label className="m3-label">{t('jobs.field.status')}</label>
+                                        <div className="relative">
+                                            <select {...register('status')} className="m3-input h-10 appearance-none bg-transparent pr-8 cursor-pointer">
+                                                <option value="draft">{t('jobs.status.draft')}</option>
+                                                <option value="active">{t('jobs.status.active')}</option>
+                                                <option value="closed">{t('jobs.status.closed')}</option>
+                                            </select>
+                                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] pointer-events-none" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="m3-label">{t('jobs.field.requirements')}</label>
+                                        <input
+                                            {...register('requirements')}
+                                            className="m3-input h-10"
+                                            placeholder={t('jobs.placeholder.requirements')}
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="m3-label">技能要求 (逗号分隔)</label>
-                                    <input {...register('requirements')} className="m3-input" placeholder="React, TypeScript" />
-                                </div>
-                            </div>
 
-                            {/* Salary Range */}
-                            <div className="grid grid-cols-2 gap-4">
+                                {/* Salary Range */}
                                 <div>
-                                    <label className="m3-label">最低薪资 (¥)</label>
-                                    <input {...register('salaryMin', { valueAsNumber: true })} type="number" className="m3-input" placeholder="15000" />
+                                    <label className="m3-label">{t('jobs.salary')}</label>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1 relative">
+                                            <span className="absolute left-3 top-2.5 text-[var(--color-text-secondary)] text-sm">¥</span>
+                                            <input
+                                                {...register('salaryMin', { valueAsNumber: true })}
+                                                type="number"
+                                                className="m3-input h-10 pl-7"
+                                                placeholder={t('jobs.placeholder.salaryMin')}
+                                            />
+                                        </div>
+                                        <span className="text-[var(--color-text-secondary)]">-</span>
+                                        <div className="flex-1 relative">
+                                            <span className="absolute left-3 top-2.5 text-[var(--color-text-secondary)] text-sm">¥</span>
+                                            <input
+                                                {...register('salaryMax', { valueAsNumber: true })}
+                                                type="number"
+                                                className="m3-input h-10 pl-7"
+                                                placeholder={t('jobs.placeholder.salaryMax')}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
+
+                                {/* Description */}
                                 <div>
-                                    <label className="m3-label">最高薪资 (¥)</label>
-                                    <input {...register('salaryMax', { valueAsNumber: true })} type="number" className="m3-input" placeholder="30000" />
+                                    <label className="m3-label">{t('jobs.field.description')}</label>
+                                    <textarea
+                                        {...register('description')}
+                                        className="m3-input min-h-[120px] py-3 resize-y"
+                                        placeholder={t('jobs.placeholder.description')}
+                                    />
                                 </div>
-                            </div>
+                            </form>
+                        </div>
 
-                            {/* Description */}
-                            <div>
-                                <label className="m3-label">岗位描述</label>
-                                <textarea
-                                    {...register('description')}
-                                    className="m3-input"
-                                    rows={3}
-                                    placeholder="职位职责和要求..."
-                                />
-                            </div>
-
-                            {/* Actions */}
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-text" onClick={onClose}>取消</button>
-                                <button type="submit" className="btn btn-filled" disabled={createMutation.isPending} style={{ minWidth: 120 }}>
-                                    {createMutation.isPending ? (
-                                        <><Loader2 size={16} className="animate-spin" /> 创建中...</>
-                                    ) : (
-                                        <><Briefcase size={16} /> 创建岗位</>
-                                    )}
-                                </button>
-                            </div>
-                        </form>
+                        {/* Footer */}
+                        <div className="p-4 border-t border-[var(--color-outline)] bg-[var(--color-surface-dim)] flex justify-end gap-3 shrink-0 rounded-b-[16px]">
+                            <button type="button" className="btn btn-text hover:bg-[var(--color-surface-active)]" onClick={onClose}>
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                type="submit"
+                                form="add-job-form"
+                                className="btn btn-filled min-w-[100px]"
+                                disabled={createMutation.isPending}
+                            >
+                                {createMutation.isPending ? (
+                                    <><Loader2 size={16} className="animate-spin" /> {t('common.creating')}</>
+                                ) : (
+                                    <><Briefcase size={16} /> {t('jobs.addAction')}</>
+                                )}
+                            </button>
+                        </div>
                     </motion.div>
                 </motion.div>
             )}

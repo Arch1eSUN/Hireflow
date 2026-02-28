@@ -3,16 +3,26 @@
 // ================================================
 
 // ======= AI 提供商类型 =======
-export enum AIModelType {
-    GEMINI_PRO = 'gemini-2.5-pro',
-    GEMINI_FLASH = 'gemini-2.5-flash',
-    GPT_4O = 'gpt-4o',
-    GPT_4O_MINI = 'gpt-4o-mini',
-    CLAUDE_SONNET = 'claude-sonnet-4-20250514',
-    CLAUDE_OPUS = 'claude-opus-4-20250514',
-    LOCAL = 'local-model',
-    MOCK = 'mock-model',
-}
+// NOTE:
+// Keep this runtime-safe for Node's strip-only TypeScript loader.
+// TS enums are not supported there, so use a const object + union type.
+export const AIModelType = {
+    GEMINI_PRO: 'gemini-2.5-pro',
+    GEMINI_FLASH: 'gemini-2.5-flash',
+    GPT_4O: 'gpt-4o',
+    GPT_4O_MINI: 'gpt-4o-mini',
+    CODEX_MINI_LATEST: 'codex-mini-latest',
+    CLAUDE_SONNET: 'claude-sonnet-4-20250514',
+    CLAUDE_OPUS: 'claude-opus-4-20250514',
+    DEEPSEEK_CHAT: 'deepseek-chat',
+    DEEPSEEK_REASONER: 'deepseek-reasoner',
+    QWEN_PLUS: 'qwen-plus',
+    QWEN_MAX: 'qwen-max',
+    LOCAL: 'local-model',
+    MOCK: 'mock-model',
+} as const;
+
+export type AIModelType = (typeof AIModelType)[keyof typeof AIModelType];
 
 export interface AIProviderConfig {
     model: AIModelType;
@@ -266,6 +276,73 @@ export interface AntiCheatEvent {
     metadata?: Record<string, unknown>;
 }
 
+// ======= 面试诚信 / 风险洞察 =======
+export type IntegrityEventType =
+    | 'TAB_HIDDEN'
+    | 'WINDOW_BLUR'
+    | 'MULTI_FACE'
+    | 'NO_FACE'
+    | 'AI_TOOL_SUSPECTED'
+    | 'NETWORK_UNSTABLE'
+    | 'AUDIO_MUTED'
+    | 'COPY_PASTE';
+
+export interface IntegrityEventInput {
+    type: IntegrityEventType;
+    severity: 'low' | 'medium' | 'high';
+    message?: string;
+    metadata?: Record<string, unknown>;
+    timestamp?: number;
+}
+
+export interface IntegrityInsight {
+    interviewId: string;
+    score: number; // 0-100, higher is safer
+    level: 'low' | 'medium' | 'high';
+    eventCount: number;
+    topSignals: Array<{ type: IntegrityEventType; count: number; severity: 'low' | 'medium' | 'high' }>;
+    timeline: Array<{ type: IntegrityEventType; severity: 'low' | 'medium' | 'high'; message: string; timestamp: string }>;
+    recommendation: string;
+}
+
+export interface IntegritySignalSummary {
+    type: IntegrityEventType;
+    count: number;
+    severity: 'low' | 'medium' | 'high';
+}
+
+export interface IntegrityOverviewInterview {
+    interviewId: string;
+    candidateName: string;
+    jobTitle: string;
+    startTime: string;
+    status: string;
+    score: number;
+    level: 'low' | 'medium' | 'high';
+    eventCount: number;
+    topSignals: IntegritySignalSummary[];
+    recentEvents: Array<{ type: IntegrityEventType; severity: 'low' | 'medium' | 'high'; message: string; timestamp: string }>;
+    recommendation: string;
+}
+
+export interface IntegrityOverviewSnapshot {
+    generatedAt: string;
+    windowDays: number;
+    summary: {
+        monitoredInterviews: number;
+        interviewsWithSignals: number;
+        averageScore: number;
+        totalEvents: number;
+        highRisk: number;
+        mediumRisk: number;
+        lowRisk: number;
+        highRiskRate: number;
+    };
+    topSignals: IntegritySignalSummary[];
+    recommendations: string[];
+    interviews: IntegrityOverviewInterview[];
+}
+
 // ======= 评估类型 =======
 export type Recommendation = 'strong_hire' | 'hire' | 'maybe' | 'no_hire';
 export type VoteType = 'hire' | 'pending' | 'reject';
@@ -343,6 +420,43 @@ export interface AIUsageStats {
     avgLatency: number;
     errorRate: number;
     byModel: Record<string, { calls: number; tokens: number; cost: number }>;
+}
+
+export type GuardrailRiskLevel = 'low' | 'medium' | 'high';
+
+export interface SourceQualityBreakdown {
+    source: string;
+    total: number;
+    hired: number;
+    rejected: number;
+    inProcess: number;
+    avgScore: number | null;
+    passRate: number;
+}
+
+export interface QualityGuardrailFlag {
+    id: string;
+    name: string;
+    stage: string;
+    score: number | null;
+    source: string;
+    reason: string;
+}
+
+export interface QualityGuardrailSnapshot {
+    generatedAt: string;
+    riskLevel: GuardrailRiskLevel;
+    summary: {
+        totalCandidates: number;
+        scoredCandidates: number;
+        highScoreRejected: number;
+        lowScoreHired: number;
+        stalledHighPotential: number;
+        sourceDisparityIndex: number;
+    };
+    sourceBreakdown: SourceQualityBreakdown[];
+    flaggedCandidates: QualityGuardrailFlag[];
+    recommendations: string[];
 }
 
 // ======= 通知类型 =======

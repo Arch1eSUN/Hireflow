@@ -11,6 +11,7 @@ export default defineConfig({
             '/api': {
                 target: 'http://localhost:4000',
                 changeOrigin: true,
+                ws: true,
             },
             '/ws': {
                 target: 'ws://localhost:4000',
@@ -22,6 +23,8 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
+            '@hireflow/i18n': path.resolve(__dirname, '../../packages/shared/i18n/src'),
+            '@hireflow/types': path.resolve(__dirname, '../../packages/shared/types/src'),
         },
     },
 });

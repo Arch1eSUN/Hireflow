@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useI18n } from '@hireflow/i18n/react';
 import api from '@/lib/api';
 
 const candidateSchema = z.object({
@@ -40,6 +41,7 @@ const modalVariants = {
 
 export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, onClose }) => {
     const queryClient = useQueryClient();
+    const { t } = useI18n();
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm({
         resolver: zodResolver(candidateSchema),
@@ -68,12 +70,12 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['candidates'] });
-            toast.success('候选人添加成功！');
+            toast.success(t('candidate.toast.success'));
             reset();
             onClose();
         },
         onError: (err: any) => {
-            toast.error(err.response?.data?.error || '添加失败，请重试');
+            toast.error(err.response?.data?.error || t('candidate.toast.fail'));
         },
     });
 
@@ -90,31 +92,11 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    className="fixed inset-0 z-50 flex items-center justify-center"
-                    variants={overlayVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
+                    // ...
                 >
-                    {/* Overlay */}
+                    {/* ... */}
                     <motion.div
-                        className="absolute inset-0"
-                        style={{ backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
-                        onClick={onClose}
-                    />
-
-                    {/* Modal */}
-                    <motion.div
-                        className="relative w-full max-w-lg mx-4 overflow-hidden"
-                        style={{
-                            backgroundColor: 'var(--color-surface)',
-                            borderRadius: '24px',
-                            boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
-                        }}
-                        variants={modalVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
+                        // ...
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--color-outline-variant)' }}>
@@ -122,7 +104,7 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-primary-container)' }}>
                                     <UserPlus size={20} style={{ color: 'var(--color-primary)' }} />
                                 </div>
-                                <h2 className="text-title-large">添加候选人</h2>
+                                <h2 className="text-title-large">{t('candidate.addTitle')}</h2>
                             </div>
                             <button className="btn-icon" onClick={onClose}>
                                 <X size={20} />
@@ -133,23 +115,23 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
                         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
                             {/* Name */}
                             <div>
-                                <label className="m3-label">姓名 *</label>
+                                <label className="m3-label">{t('candidate.field.name')} *</label>
                                 <input
                                     {...register('name')}
                                     className={`m3-input ${errors.name ? 'm3-input--error' : ''}`}
-                                    placeholder="例: 张三"
+                                    placeholder={t('candidate.placeholder.name')}
                                 />
                                 {errors.name && <p className="m3-error">{errors.name.message}</p>}
                             </div>
 
                             {/* Email */}
                             <div>
-                                <label className="m3-label">邮箱 *</label>
+                                <label className="m3-label">{t('candidate.field.email')} *</label>
                                 <input
                                     {...register('email')}
                                     type="email"
                                     className={`m3-input ${errors.email ? 'm3-input--error' : ''}`}
-                                    placeholder="candidate@example.com"
+                                    placeholder={t('candidate.placeholder.email')}
                                 />
                                 {errors.email && <p className="m3-error">{errors.email.message}</p>}
                             </div>
@@ -157,20 +139,20 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
                             {/* Phone + Job (side by side) */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="m3-label">电话</label>
+                                    <label className="m3-label">{t('candidate.field.phone')}</label>
                                     <input
                                         {...register('phone')}
                                         className="m3-input"
-                                        placeholder="138xxxx"
+                                        placeholder={t('candidate.placeholder.phone')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="m3-label">应聘岗位 *</label>
+                                    <label className="m3-label">{t('candidate.field.job')} *</label>
                                     <select
                                         {...register('jobId')}
                                         className={`m3-input ${errors.jobId ? 'm3-input--error' : ''}`}
                                     >
-                                        <option value="">选择岗位</option>
+                                        <option value="">{t('candidate.placeholder.job')}</option>
                                         {(jobsData || []).map((j: any) => (
                                             <option key={j.id} value={j.id}>{j.title}</option>
                                         ))}
@@ -182,19 +164,19 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
                             {/* Source + Skills */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="m3-label">来源</label>
+                                    <label className="m3-label">{t('candidate.field.source')}</label>
                                     <input
                                         {...register('source')}
                                         className="m3-input"
-                                        placeholder="例: BOSS直聘"
+                                        placeholder={t('candidate.placeholder.source')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="m3-label">技能 (逗号分隔)</label>
+                                    <label className="m3-label">{t('candidate.field.skills')}</label>
                                     <input
                                         {...register('skills')}
                                         className="m3-input"
-                                        placeholder="React, Node.js"
+                                        placeholder={t('candidate.placeholder.skills')}
                                     />
                                 </div>
                             </div>
@@ -202,7 +184,7 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
                             {/* Actions */}
                             <div className="modal-footer">
                                 <button type="button" className="btn btn-text" onClick={onClose}>
-                                    取消
+                                    {t('common.cancel')}
                                 </button>
                                 <button
                                     type="submit"
@@ -211,9 +193,9 @@ export const AddCandidateModal: React.FC<AddCandidateModalProps> = ({ isOpen, on
                                     style={{ minWidth: 120 }}
                                 >
                                     {createMutation.isPending ? (
-                                        <><Loader2 size={16} className="animate-spin" /> 提交中...</>
+                                        <><Loader2 size={16} className="animate-spin" /> {t('common.submitting')}</>
                                     ) : (
-                                        <><UserPlus size={16} /> 添加候选人</>
+                                        <><UserPlus size={16} /> {t('candidate.addAction')}</>
                                     )}
                                 </button>
                             </div>

@@ -1,29 +1,25 @@
-// HireFlow Toast — Sonner with M3 Liquid Glass styling
 import { Toaster as SonnerToaster } from 'sonner';
 
 export function AppToaster() {
     return (
         <SonnerToaster
-            position="top-right"
+            position="bottom-left"
             toastOptions={{
-                duration: 3500,
+                duration: 4000,
                 style: {
                     fontFamily: 'Inter, system-ui, sans-serif',
                     fontSize: '14px',
-                    borderRadius: '16px',
-                    padding: '14px 20px',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                    borderRadius: '4px',
+                    padding: '12px 16px',
+                    background: '#323232', // Dark Grey (Google Snack bar style)
+                    color: '#FFFFFF',
+                    border: 'none',
+                    boxShadow: '0 3px 5px -1px rgba(0,0,0,0.2), 0 6px 10px 0 rgba(0,0,0,0.14), 0 1px 18px 0 rgba(0,0,0,0.12)',
                 },
-                classNames: {
-                    success: 'hf-toast-success',
-                    error: 'hf-toast-error',
-                    info: 'hf-toast-info',
-                },
+                descriptionClassName: 'text-gray-400',
             }}
-            richColors
+            richColors={false} // Use custom dark style
+            theme="dark"
         />
     );
 }

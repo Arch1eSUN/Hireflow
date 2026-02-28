@@ -1,4 +1,621 @@
 # Progress
 
 - 2026-02-13: 已读取 CLAUDE_REVIEW 并创建规划文件（task_plan/findings/progress）。
-- 下一步：审阅代码与运行页面，输出前后端落地建议与 antigravity 提示词。
+- 已完成：抽样审阅关键文件（Layout、ai routes、websocket、ScreeningPage、InterviewRoomPage）。
+- 已完成：启动项目并验证运行态（portal:3004、interview:3005、server 端口 4000 冲突）。
+- 已完成：浏览器检查 portal 当前成果（登录页可用，UI 质量较高）。
+- 下一步：输出生产落地建议（前端+后端+架构+设计）并生成 antigravity 详细提示词。
+- 2026-02-13 23:50：重置夜间循环计划，优先修复 server 启动阻塞（@hireflow/types 导出不匹配）与 shared 包 TS18003，然后再做 Interview 实时链路联调。
+- 2026-02-13（本轮）：已优先修复用户指定项。
+  - 修复 Layout 主内容区显示异常（回归 flex 主轴布局，避免仅侧栏可见）。
+  - 语言切换按钮从单地球图标升级为 `Languages + EN/中`，可见性更强。
+  - Settings 新增“当前使用模型”可视化：API 接入后可按 provider 显示当前模型（来自 default/technical/resume model 配置映射）。
+  - Dashboard 继续清理中英混杂：多处英文改为 i18n key（系统健康、AI 用量、流程空态、趋势文案、图例等）。
+  - Interview 候选人端开发推进：Landing/DeviceCheck 改为 i18n 驱动，首屏 CTA 与文案统一；按钮形态向 Google 风格（圆角 pill + 轻阴影）靠拢。
+  - InterviewRoom 持续推进：接入 i18n（进行中/当前任务/转写/AI 说话状态等），并清理无用依赖，确保前端 type-check 通过。
+- 2026-02-14（持续开发）：
+  - 新增公司级监控策略模板接口：`GET/PUT /api/settings/monitor-policy`，并持久化到审计日志。
+  - 面试创建时自动继承公司模板，写入 interview 级策略日志；监控页读取策略时支持 `company_default` 源。
+  - 监控页新增策略管理增强：`Use Template` 一键应用公司模板到当前面试策略。
+  - 面试者端新增 `code_sync` 发送，管理端新增 `Live Code Mirror` 展示，支持证据导出包含代码快照。
+  - 全仓 `npm run build` 通过（server/portal/interview 均通过）。
+- 2026-02-14（继续开发）：
+  - 新增公司模板批量下发接口：`POST /api/settings/monitor-policy/apply`，支持 `missing_only/overwrite`、状态过滤与数量上限。
+  - Settings 安全页新增“Apply to Interviews”按钮，可一键把模板下发到进行中/待开始面试。
+  - `jobs` 创建/更新接口做兼容增强：支持 `description`/`descriptionJd` 双字段、`salaryMin/salaryMax` 与 `salaryRange` 双写法，降低旧端调用失败概率。
+  - 回归验证：`npm run build` 再次通过。
+- 2026-02-14（继续开发-2）：
+  - Portal 构建拆包优化：Vite `manualChunks` 按 React/Query/Charts/Motion/Icons 拆分，消除超大入口包告警并优化首屏加载。
+  - Settings 监控模板支持覆盖模式：新增 `Overwrite existing interview policies` 选项并接入批量下发接口。
+  - 回归验证：`server` 与 `portal` 构建通过。
+- 2026-02-14（继续开发-3）：
+  - 模板批量下发后增加监控端实时联动：后端向受影响面试广播 `monitor_policy_updated`。
+  - 监控页收到策略广播后自动刷新策略查询，确保“来源/更新时间”与后端一致。
+  - 回归验证：`portal` 构建通过。
+- 2026-02-14（继续开发-4）：
+  - 扩展监控策略模型（后端+前端）：新增 `enforceFullscreen`、`enforceEntireScreenShare`、`strictClipboardProtection`、`codeSyncIntervalMs`，并接入设置页与监控页可视化编辑。
+  - 新增候选人公开策略接口：`GET /api/public/interview/:token/monitor-policy`，候选人端进入面试前自动拉取并应用策略。
+  - 候选人端支持策略热更新：收到 `monitor_policy_updated` 后实时生效（全屏要求、整屏共享要求、剪贴板限制、代码同步频率）。
+  - 修复策略广播一致性：面试级保存/公司批量下发策略时，改为房间内广播（候选人与管理端同时收到更新）。
+  - 修复登录登出稳定性：Portal 登出改为调用 `/auth/logout` 清理 refresh cookie；服务端 `clearCookie` 与设置 cookie 参数保持一致。
+  - 回归验证：`npm run build`（turbo 全仓）通过。
+- 2026-02-14（继续开发-5，全量推进）：
+  - 面试级策略新增版本管理接口：
+    - `GET /api/interviews/:id/monitor-policy/history`
+    - `POST /api/interviews/:id/monitor-policy/rollback`
+  - 公司模板新增版本管理接口：
+    - `GET /api/settings/monitor-policy/history`
+    - `POST /api/settings/monitor-policy/rollback`
+  - 管理端监控页接入策略历史 + 一键回滚，并在策略更新时联动刷新历史。
+  - 管理端证据能力增强：新增 `Code Diff Timeline`（增删改行数、字符变化、时间线），导出证据新增 `code-diff-timeline-*.csv`。
+  - 设置页安全模块接入模板历史 + 一键回滚（owner/admin）。
+  - 新增 API E2E 自动化脚本：`scripts/e2e-auth-policy.mjs`，覆盖注册→策略保存→历史→回滚→登出→refresh 失效；根脚本新增 `npm run test:e2e:api`。
+  - 验证状态：
+    - `npm run build` 通过（全仓）。
+    - `npm run test:e2e:api` 在当前环境失败（`localhost:4000` 未运行），脚本已输出明确提示。
+- 2026-02-15（继续开发-6，批量下发与审计增强）：
+  - 设置页“Apply to Interviews”新增可控范围：支持选择状态（upcoming/active/completed/cancelled）与批处理上限（1-1000）。
+  - 批量下发结果增强：后端返回 `affectedInterviewIds`，前端保留最近一次下发结果摘要。
+  - 策略历史项新增 `rollbackFrom` 元信息（公司模板/面试级均支持），前端历史列表可展示回滚来源版本片段。
+  - 环境验证：
+    - `server` 与 `portal` 构建通过。
+    - `docker compose up -d` 失败（Docker daemon 未运行），因此 API E2E 仍无法在本机当前环境跑通。
+- 2026-02-15（继续开发-7，预览与对比增强）：
+  - 批量下发接口新增 `dryRun` 预览模式，支持在不落库的情况下返回将影响的面试数量与 `affectedInterviewIds`。
+  - 设置页新增 `Preview Apply` 按钮，支持“先预览后下发”，并显示最近一次预览结果。
+  - 设置页策略历史增强：支持选中历史版本并展示与当前草稿的字段级 diff（开关、阈值、代码同步间隔）。
+  - 监控页策略历史增强：支持选中历史版本并展示与当前策略的字段级 diff。
+  - 监控证据导出增强：新增 `evidence-bundle-*.json` 聚合导出（证据 JSON + integrity CSV + code diff CSV）。
+  - E2E 脚本增强：增加 `/health` 预检与更明确错误提示（服务未启动时直接报错引导）。
+  - 回归验证：
+    - `npm run build` 通过。
+    - `npm run test:e2e:api` 失败原因明确：本地 `server` 未运行。
+- 2026-02-15（继续开发-8，监控端证据中心与审计轨迹）:
+  - 监控页新增 `Evidence Center`：支持 `Export All / Bundle / JSON / CSV` 多模式导出，并展示高风险事件、高危告警、代码变更、自动终止等实时摘要。
+  - 证据导出新增会话内审计追踪：导出后记录最近导出时间/模式/次数，同时写入 `manual_intervention` 监控告警元数据（导出模式与关键计数）。
+  - 监控策略历史升级为 `Policy Audit Trail`：每个版本展示变更字段数量、更新人、回滚来源；新增 Diff 基线切换（Current / Previous），提升回滚前可读性。
+  - 监控页视觉优化（Google/Material 风格收口）：证据卡片层级、导出操作分组、状态芯片增强；音频波形从随机抖动改为稳定波形序列。
+  - 回归验证：`npm --workspace @hireflow/portal run build` 与 `npm run build` 均通过。
+  - 监控页布局补充响应式收口：头部状态区支持换行，小屏改单列，大屏维持 8/4 监控布局。
+- 2026-02-15（继续开发-9，证据导出持久化）:
+  - 后端新增证据导出审计接口：
+    - `POST /api/interviews/:id/evidence-exports`（记录导出模式、导出文件、关键摘要）
+    - `GET /api/interviews/:id/evidence-exports`（按面试拉取导出历史）
+  - 导出审计写入 `auditLog(action=monitor.evidence_export)`，并通过 websocket 广播 `evidence_export_logged` 给监控端。
+  - 监控页 Evidence Center 接入持久化历史列表，导出按钮与后端日志联动，支持显示最新导出日志条目（mode/files/high risk/diffs）。
+  - 导出时增加后端审计写入失败提示（本地导出成功但历史同步失败会提示）。
+  - 回归验证：`npm --workspace server run build`、`npm --workspace @hireflow/portal run build`、`npm run build` 均通过。
+- 2026-02-15（继续开发-10，证据回放时间轴）:
+  - 后端新增 `GET /api/interviews/:id/evidence-timeline`，聚合审计事件（`monitor.alert`、`monitor.evidence_export`、`monitor.policy.updated`、`interview.terminated`）并标准化为回放条目。
+  - 监控页 Evidence Center 新增 `Evidence replay timeline`：支持按类别筛选（All/Alert/Export/Policy/Terminate）、手动同步、时间轴 JSON 导出。
+  - 前端联动增强：收到 `monitor_alert`、`monitor_policy_updated`、`evidence_export_logged`、`session_terminated` websocket 事件时自动刷新时间轴查询。
+  - 回归验证：`npm --workspace server run build`、`npm --workspace @hireflow/portal run build`、`npm run build` 全部通过。
+- 2026-02-15（继续开发-11，时间轴详情与完整证据包）:
+  - 监控页完整证据导出升级：`Export All / JSON / CSV / Bundle` 统一包含 replay timeline（新增 `evidence-timeline-*.json` 与 `evidence-timeline-*.csv`）。
+  - 导出摘要新增 `timelineEventCount`，并在导出审计/监控告警元数据中同步记录。
+  - Evidence replay timeline 交互增强：支持 `Timeline CSV` 导出、可点击事件高亮、下方详情面板展示事件细节 JSON。
+  - 后端证据导出 schema 扩展支持 `summary.timelineEventCount`，时间轴消息文案可显示 timeline 计数。
+  - 回归验证：`npm --workspace server run build`、`npm --workspace @hireflow/portal run build`、`npm run build` 全部通过。
+- 2026-02-15（继续开发-12，上线阻断清零第一轮）:
+  - 后端新增统一环境校验：`server/src/config/env.ts`，对 `DATABASE_URL/JWT_SECRET/ENCRYPTION_KEY/PORT/HOST` 做启动期校验，并在 production 阻断弱密钥。
+  - 安全硬化：移除 `JWT_SECRET/ENCRYPTION_KEY/cookie secret` 的默认回退值，`websocket` 鉴权改为复用 `verifyToken`，避免分散 secret 逻辑。
+  - 清理旧入口：删除 `server/index.ts`，统一以 `server/src/index.ts` 作为后端唯一入口。
+  - 前端运行时地址治理：新增 `apps/interview/src/lib/runtime.ts` 与 `apps/portal/src/lib/runtime.ts`，API/WS 默认改为“环境变量优先 + 当前域名回退”，不再写死 `localhost:4000`。
+  - 修复类型阻断：修复 `apps/interview/src/pages/DeviceCheckPage.tsx` 媒体能力检测的 TS2774，并修复 `InterviewMonitorPage` 中 `onClick` 签名不匹配问题。
+  - 环境示例更新：补充 `VITE_WS_URL` 与 `CORS_ORIGIN`，并明确 `JWT_SECRET` 长度要求、`ENCRYPTION_KEY` 必须 32 位。
+  - 回归验证：
+    - `npm run type-check` 通过（全仓）。
+    - `npm run build` 通过（全仓）。
+- 2026-02-15（继续开发-13，E2E 一键化）:
+  - 修复 API E2E 健康检查路径：`scripts/e2e-auth-policy.mjs` 从 `/health` 改为 `/api/health`。
+  - 新增 E2E runner：`scripts/run-e2e-api.mjs`，支持自动流程：
+    - 检查 API 健康
+    - API 未启动时自动构建并启动 `@hireflow/server`
+    - 检测 Postgres 可达性；默认尝试 `docker compose up -d postgres` 自动拉起
+    - 测试结束后自动回收 runner 启动的 server 进程
+  - 根脚本升级：
+    - `npm run test:e2e:api` -> 自动 runner
+    - `npm run test:e2e:api:direct` -> 直连执行（需手动起 server）
+  - 文档补充：README 增加 API E2E 用法与环境变量说明（`HIREFLOW_BASE_URL`、`HIREFLOW_E2E_AUTO_DB_START`）。
+  - 回归验证：
+    - `npm run test:e2e:api` 在当前环境输出明确阻断：Docker daemon 未运行，无法自动拉起 Postgres（错误信息清晰）。
+  - 兼容性清理：移除 `docker-compose.yml` 顶层 `version` 字段，消除新版本 Docker Compose 的过时警告。
+- 2026-02-15（继续开发-14，API 冒烟套件扩展）:
+  - 新增核心冒烟脚本：`scripts/e2e-core-smoke.mjs`，覆盖链路：
+    - auth register
+    - job create
+    - candidate create
+    - interview create
+    - interview monitor state / policy
+    - public interview preview/start
+    - integrity event ingest + private integrity insight
+    - monitor alert persistence/list
+    - evidence export persistence/history/timeline
+    - integrity overview
+    - interview terminate cleanup
+  - `scripts/run-e2e-api.mjs` 升级为多套件执行器：
+    - 支持 `--all`
+    - 支持套件别名（`auth/policy/smoke/core`）
+    - 默认仍执行 `e2e-auth-policy.mjs`
+  - 根脚本新增：
+    - `npm run test:e2e:smoke`
+    - `npm run test:e2e:smoke:direct`
+    - `npm run test:e2e:all`
+  - README 更新：补充 smoke/all 的运行命令说明。
+- 2026-02-15（继续开发-15，CI 自动化）:
+  - 新增 GitHub Actions 工作流：`.github/workflows/e2e-api.yml`。
+  - CI 使用 Postgres service（5433）并注入测试环境变量（`DATABASE_URL/JWT_SECRET/ENCRYPTION_KEY`）。
+  - CI 执行顺序：
+    - `npm ci`
+    - `prisma generate`
+    - `prisma migrate deploy`
+    - `npm run build`
+    - `npm run test:e2e:all`
+  - 目标：把新增 API E2E 套件纳入 PR 与主干自动回归，降低上线回归风险。
+- 2026-02-15（继续开发-16，可信证据链）:
+  - 后端新增证据链服务：`server/src/services/evidence/chain.ts`，对关键审计动作（`integrity.event`、`monitor.alert`、`monitor.evidence_export`、`interview.terminated`）写入 `sha256` 哈希链（`seq/prevHash/payloadHash/eventHash`）。
+  - 新增校验接口：`GET /api/interviews/:id/evidence-chain/verify`，支持链完整性验证（`valid/partial/broken/not_initialized`）与断裂定位。
+  - 已接入链写入的路由：公开完整性事件上报、监控告警持久化、证据导出日志、面试终止日志。
+  - 管理端监控页 Evidence Center 接入链状态视图（状态芯片、手动 Verify、最新哈希/断点提示），并将链状态写入证据导出摘要与 bundle。
+  - API 冒烟脚本增强：`scripts/e2e-core-smoke.mjs` 新增证据链校验断言（状态 + linkedEvents 下限）。
+  - 回归验证：
+    - `npm run type-check` 通过。
+    - `npm run build` 通过。
+    - `npm run test:e2e:smoke` 当前环境失败原因明确：Docker daemon 未运行，无法自动拉起 Postgres。
+- 2026-02-15（继续开发-17，证据链导出门禁）:
+  - 新增公司级证据链策略服务：`server/src/services/evidence/policy.ts`，支持默认策略与审计存储（`evidence.chain.policy.updated`）。
+  - 新增设置接口：
+    - `GET /api/settings/evidence-chain-policy`
+    - `PUT /api/settings/evidence-chain-policy`
+  - 证据导出后端门禁上线：`POST /api/interviews/:id/evidence-exports` 在落库前执行链校验 + 策略检查；当策略要求阻断时返回 `409`。
+  - 证据导出摘要由后端补充链指标：`chainStatus/chainLinkedEvents/chainCheckedEvents/chainLatestHash`（前端上传值会被后端覆盖为真实状态）。
+  - 监控端 Evidence Center 接入导出门禁体验：
+    - 拉取公司链策略并展示
+    - 导出按钮在阻断条件下自动禁用
+    - 提示具体阻断原因（broken/partial）
+  - 设置页 Security 新增 `Evidence Chain Export Policy` 配置卡片（可保存 `blockOnBrokenChain/blockOnPartialChain`）。
+  - API 冒烟脚本补充：新增 `GET /settings/evidence-chain-policy` 校验。
+- 2026-02-15（继续开发-18，证据链策略版本化回滚）:
+  - 后端新增证据链策略历史与回滚接口：
+    - `GET /api/settings/evidence-chain-policy/history?limit=20`
+    - `POST /api/settings/evidence-chain-policy/rollback`
+  - 回滚行为写入同一审计动作 `evidence.chain.policy.updated`，并附加 `source=rollback` 与 `rollbackFrom` 元信息。
+  - 证据链策略服务新增 `toEvidenceChainPolicyHistoryItem(...)`，统一历史项 payload 结构（`policy/source/rollbackFrom/updatedAt/updatedBy`）。
+  - 设置页 Security 的 `Evidence Chain Export Policy` 卡片升级：
+    - 新增 `Policy History` 列表
+    - 支持选择历史版本查看与当前草稿的字段级 diff
+    - 支持一键回滚历史版本
+  - API 冒烟脚本增强：`scripts/e2e-core-smoke.mjs` 新增证据链策略保存双版本、历史拉取、回滚验证（断言回滚后的策略字段）。
+- 2026-02-15（继续开发-19，监控端证据链策略治理）:
+  - 管理端 `InterviewMonitorPage` 的 Evidence Center 新增公司级证据链策略治理面板：
+    - 策略草稿开关（`blockOnBrokenChain/blockOnPartialChain`）
+    - owner/admin 可直接 `Save/Reset`，其他角色只读
+    - 策略来源与最近保存时间展示（saved/default）
+  - 监控端接入公司策略历史：
+    - 拉取 `GET /api/settings/evidence-chain-policy/history`
+    - 历史列表显示 `source/rollbackFrom/字段变更数`
+    - 支持在监控页直接回滚 `POST /api/settings/evidence-chain-policy/rollback`
+  - 监控端新增“选中版本与当前草稿”的字段级 diff 视图，便于导出门禁策略变更复核。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+- 2026-02-15（继续开发-20，证据链策略实时同步）:
+  - `SocketManager` 新增公司维度监控端广播能力：`sendToCompanyMonitors(companyId, message)`。
+  - websocket 连接上下文补齐 `companyId`（候选人从 interview.job.companyId，监控端从 JWT 用户 companyId）。
+  - 设置接口在证据链策略保存/回滚后广播实时事件：
+    - `type: company_evidence_chain_policy_updated`
+    - payload: `policy/source/updatedBy/timestamp/(rollbackFrom)`
+  - 监控端 `InterviewMonitorPage` 接入实时事件：
+    - 收到事件后立即更新 `company-evidence-chain-policy` 查询缓存
+    - 自动刷新策略历史
+    - 非本人的变更弹 toast 提示
+    - 本地无脏草稿时自动同步草稿开关，避免误覆盖正在编辑的策略
+  - 回归验证：
+    - `npm --workspace server run build` 通过。
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+- 2026-02-15（继续开发-21，公司监控模板实时同步）:
+  - 后端在公司模板策略保存/回滚后新增 websocket 广播：
+    - `type: company_monitor_policy_template_updated`
+    - payload: `policy/source/updatedBy/timestamp/(rollbackFrom)`
+  - 监控端 `InterviewMonitorPage` 接入该事件：
+    - 即时更新 `company-monitor-policy-template` 查询缓存
+    - 当当前面试策略处于 `company_default` 且本地无脏改动时，自动同步到最新模板策略
+    - 自动触发模板查询与（必要时）面试策略查询刷新
+    - 非本人变更弹 toast 提示
+  - README websocket 事件说明补充 `company_monitor_policy_template_updated`。
+- 2026-02-15（继续开发-22，策略变更幂等与审计原因）:
+  - 后端策略写入接口补齐幂等与审计原因字段：
+    - 公司监控模板策略保存/回滚：`PUT /api/settings/monitor-policy`、`POST /api/settings/monitor-policy/rollback`
+    - 公司证据链策略保存/回滚：`PUT /api/settings/evidence-chain-policy`、`POST /api/settings/evidence-chain-policy/rollback`
+    - 可选请求字段：`reason`、`idempotencyKey`；相同 `idempotencyKey` 会返回 `idempotentReplay=true`，避免重复提交造成重复版本。
+  - 证据链策略历史项补齐 `reason` 字段：`toEvidenceChainPolicyHistoryItem(...)` 返回 `reason`，前端可直接展示。
+  - 设置页 `SettingsPage` 升级：
+    - 监控模板与证据链策略均新增“保存原因 / 回滚原因”输入框（可选）。
+    - 保存与回滚请求自动附带 `idempotencyKey`，支持重试幂等。
+    - 历史列表新增 `reason` 展示，便于审计追溯。
+  - 监控页 `InterviewMonitorPage` 证据链策略治理面板升级：
+    - 新增保存/回滚原因输入框（可选）。
+    - 保存/回滚请求自动附带 `idempotencyKey`。
+    - 历史版本卡片新增 `reason` 展示。
+  - README 补充策略接口的 `reason/idempotencyKey` 使用说明。
+  - 回归验证：
+    - `npm --workspace server run build` 通过。
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-23，面试级监控策略幂等审计闭环）:
+  - 面试级监控策略接口补齐 `reason/idempotencyKey`：
+    - `PUT /api/interviews/:id/monitor-policy`
+    - `POST /api/interviews/:id/monitor-policy/rollback`
+  - 后端新增面试级幂等复用检查：同一 interview + 同一 `idempotencyKey` 触发重复提交时返回 `idempotentReplay=true`，避免重复版本写入。
+  - 面试级策略历史项补齐 `reason` 字段，前端可直接展示原因。
+  - 管理端监控页 `Auto Terminate Policy` 面板升级：
+    - 新增保存原因、回滚原因输入框（可选）。
+    - 保存/回滚请求自动携带 `idempotencyKey`。
+    - 历史版本卡片增加 `reason` 展示。
+  - README 补充面试级策略接口支持 `reason/idempotencyKey`。
+  - 回归验证：
+    - `npm --workspace server run build` 通过。
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-24，策略原因实时可见 + 冒烟脚本覆盖扩展）:
+  - 后端 evidence timeline 对 `monitor.policy.updated` 事件文案增强：当策略变更带 `reason` 时，时间线消息追加 `reason`，便于审计追溯。
+  - 监控页 websocket 实时提示增强：
+    - `monitor_policy_updated`
+    - `company_monitor_policy_template_updated`
+    - `company_evidence_chain_policy_updated`
+    - 当事件含 `reason` 时，toast 直接显示原因。
+  - `scripts/e2e-core-smoke.mjs` 扩展验证：
+    - 面试级监控策略保存幂等 replay（同 `idempotencyKey`）断言。
+    - 面试级监控策略回滚幂等 replay 断言。
+    - 面试级策略历史最新项 `reason` 字段断言。
+    - 公司证据链策略保存幂等 replay 断言。
+  - 回归验证：
+    - `npm --workspace server run build` 通过。
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-25，时间线原因可读性 + auth-policy 幂等回归）:
+  - 监控页 `Evidence replay timeline` 交互优化：
+    - 当事件详情含 `reason` 时，在时间线列表与详情面板中独立显示 `reason`，不必展开 JSON 即可快速审计。
+  - `scripts/e2e-auth-policy.mjs` 增强：
+    - 公司监控模板保存新增 `reason + idempotencyKey`。
+    - 新增保存 replay 断言：重复提交同一 `idempotencyKey` 必须返回 `idempotentReplay=true` 且策略值不变。
+    - 历史列表新增 `reason` 字段断言。
+    - 回滚新增 `reason + idempotencyKey`，并新增回滚 replay 断言。
+  - 回归验证：
+    - `npm --workspace server run build` 通过。
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-26，auth-policy 证据链接口幂等补齐）:
+  - `scripts/e2e-auth-policy.mjs` 继续增强公司证据链策略链路回归：
+    - 保存 v1（带 `reason + idempotencyKey`）并断言返回策略值。
+    - 保存 v1 replay（同 key，不同 payload）并断言 `idempotentReplay=true` + 策略不变。
+    - 保存 v2 创建可回滚版本。
+    - 拉取历史并断言最新版本含 `reason`。
+    - 回滚到历史版本（带 `reason + idempotencyKey`）并断言恢复值。
+    - 回滚 replay（同 key）并断言 `idempotentReplay=true` + 策略不变。
+  - 回归验证：
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-27，幂等回放前端提示闭环）:
+  - 设置页与监控页的策略保存/回滚 mutation 统一识别 `idempotentReplay` 返回值。
+  - 当命中幂等回放时，toast 改为明确提示“重复请求已忽略，沿用已有版本”，避免误认为产生了新版本。
+  - 涉及模块：
+    - `SettingsPage`：公司监控模板策略、公司证据链策略（保存/回滚）。
+    - `InterviewMonitorPage`：面试级监控策略、公司证据链策略（保存/回滚）。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-28，smoke 断言增强：策略原因可观测）:
+  - `scripts/e2e-core-smoke.mjs` 新增断言：
+    - 公司证据链策略历史最新项必须带 `reason`。
+    - 面试 evidence timeline 中必须存在带 `reason:` 文案的策略事件（`category=policy`）。
+  - 目的：把“策略原因可追溯”从实现提升为可回归验证能力，防止后续改动回退。
+  - 回归验证：
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-29，时间线 CSV 导出 reason 列）:
+  - 监控页 `evidence timeline CSV` 导出新增 `reason` 独立列，便于合规/法务侧直接过滤策略原因。
+  - CSV 序列化统一改为字段级转义（双引号包裹 + 转义内部引号），提升导出稳定性。
+  - 时间线列表渲染优化：避免重复读取 `reason`，并在详情面板复用选中项 `reason` 计算结果。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-30，导出审计新增 policy reason 分布统计）:
+  - 监控页导出链路补齐 policy reason 统计：
+    - 新增策略原因聚合：`policyReasonEvents / policyReasonUnique / policyTopReasons`（来自 evidence timeline 中 `category=policy` 且带 `reason` 的事件）。
+    - 导出 bundle 元数据新增 `summary`，并在 `evidence.json` 内追加 `exportSummary`，实现离线审计可复核。
+    - 持久化导出日志 `summary` 直接写入上述统计字段，减少前后端统计口径漂移。
+  - 管理端可视化补齐：
+    - `Export manifest preview` 增加 policy reason 统计展示。
+    - `Persisted export audit` 增加 `reasons events/unique` 指标展示。
+  - 后端接口与时间线文案补齐：
+    - `POST /api/interviews/:id/evidence-exports` 的 `summary` schema 增加 policy reason 字段校验与透传。
+    - evidence timeline 的 `monitor.evidence_export` 消息追加 `policy reasons N`，便于快速审计。
+  - 冒烟脚本增强：
+    - `scripts/e2e-core-smoke.mjs` 在导出日志写入时加入 policy reason 统计样例。
+    - 新增断言：导出历史中必须能读到 `policyReasonEvents/policyReasonUnique/policyTopReasons`。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-31，导出审计可读性与回归断言加固）:
+  - 管理端 `Persisted export audit` 交互升级：
+    - 导出记录改为可选中卡片，支持高亮当前审计项。
+    - 新增 `Selected export details` 面板，展示导出模式、导出时间、文件数与 policy reason 统计（events/unique）。
+    - 新增 policy reason top list（最多 5 条），便于快速定位高频策略变更原因。
+  - 冒烟脚本新增回归断言：
+    - evidence timeline 中必须存在 export 事件文案包含 `policy reasons`，防止后端摘要文案回退。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-32，reason 筛选联动与导出审计交互升级）:
+  - 监控页 `Evidence replay timeline` 新增 reason 维度快速筛选：
+    - 新增筛选状态 `evidenceTimelineReasonFilter`，支持与类别筛选叠加。
+    - 新增 `Reason quick filter` 区域（最多 6 个高频 reason），可一键应用并支持 `Clear`。
+    - 当 reason 生效且无结果时，空态文案显示具体 reason，便于排查。
+  - 监控页导出审计联动增强：
+    - `Selected export details` 中 `policyTopReasons` 从静态标签升级为可点击筛选按钮。
+    - 点击后自动切换 timeline 到 `policy` 分类并带入对应 reason 过滤，形成“审计记录 -> 时间线回放”直达链路。
+  - 时间线 JSON 导出补充筛选上下文：
+    - `filter` 从单一 category 升级为 `{ category, reason }`，便于离线复盘时复现筛选条件。
+  - 冒烟脚本断言加固：
+    - `scripts/e2e-core-smoke.mjs` 新增 `policy reasons 1` 文案计数断言，防止后端摘要文案只保留关键词但丢失数量。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-33，时间线组合筛选与可视化统计条）:
+  - 监控页 `Evidence replay timeline` 筛选维度扩展为组合模式：
+    - 新增 `severity` 过滤（All/High/Medium/Low）。
+    - 新增 `action` 快速过滤（按高频 action 聚合，最多 8 项）。
+    - 与已有 `category`、`reason` 同时生效，形成多条件联动过滤。
+  - 新增筛选状态可视化：
+    - 显示激活的筛选标签（`category/severity/action/reason`）。
+    - 支持 `Clear all` 一键重置全部筛选条件。
+  - 新增时间线严重度统计条（high/medium/low 占比），提升风险态势可读性。
+  - 导出上下文补全：
+    - 时间线 JSON 导出 `filter` 增加 `severity` 与 `action` 字段，便于离线复现筛选条件。
+  - 导出审计联动细化：
+    - 从导出详情点击 reason 时，自动清空 `severity/action` 过滤，仅保留 `policy + reason`，避免交叉条件导致空结果。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-34，时间线筛选 URL 持久化与分享链接）:
+  - 监控页 `Evidence replay timeline` 筛选状态接入 URL query 持久化：
+    - 新增 query 参数：`tlCategory`、`tlSeverity`、`tlAction`、`tlReason`。
+    - 页面初始化从 URL 恢复筛选状态，支持刷新后保持筛选。
+    - 筛选变更自动回写 URL（replace 模式，避免污染历史栈）。
+  - 新增筛选分享能力：
+    - 时间线操作区新增 `Copy Link` 按钮，一键复制当前筛选 URL。
+  - 交互细化：
+    - 切换面试 `id` 时不再强制清空筛选，改为读取当前 URL 的筛选值恢复，便于跨会话复盘。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-35，深链接复盘：选中导出与选中事件同步）:
+  - 监控页深链接能力补全：
+    - 新增 URL 参数：`tlEvent`、`tlExport`。
+    - 当前选中的 timeline 事件与导出审计项会实时回写 URL。
+    - 刷新页面、前进后退或直接打开分享链接时，会恢复到同一条导出记录和事件详情。
+  - 状态同步策略：
+    - 初始化时从 URL 读取 `tlEvent/tlExport` 作为选中态初值。
+    - URL 变化时（浏览器历史/外部改参）会反向同步到本地状态。
+    - 切换 interview `id` 时改为读取当前 URL 的选中态，避免无条件清空导致复盘中断。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-36，深链接自动定位：事件与导出项滚动到可见）:
+  - 监控页回放列表新增自动定位逻辑：
+    - 当 `tlEvent` 或本地选中事件变化时，时间线列表自动 `scrollIntoView` 到目标事件。
+    - 当 `tlExport` 或本地选中导出项变化时，导出审计列表自动 `scrollIntoView` 到目标导出记录。
+  - 解决“选中项超出默认分页窗口”问题：
+    - 时间线列表默认展示前 20 条，但如果当前选中事件不在前 20 内，会自动将该事件插入展示列表。
+    - 导出审计列表默认展示前 10 条，但如果当前选中导出项不在前 10 内，会自动将该导出项插入展示列表。
+  - 结果：分享深链接后，页面不仅恢复筛选和选中态，还会把目标记录自动滚动到可见区域，复盘路径完整闭环。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-37，时间线链接参数版本化 + 向后兼容）:
+  - 监控页回放深链接参数完成版本化治理：
+    - 新增 `v2` 参数键：`tlv`、`tlc`、`tls`、`tla`、`tlr`、`tle`、`tlx`。
+    - 旧参数键（`tlCategory/tlSeverity/tlAction/tlReason/tlEvent/tlExport`）继续支持读取，保证历史分享链接可用。
+  - 引入统一参数读写层：
+    - `getTimelineSearchParam(...)`：优先读取 `v2`，回退到 legacy。
+    - `setTimelineSearchParam(...)`：写入 `v2` 并自动清理 legacy 键，防止参数双写。
+  - URL 写回逻辑增强：
+    - 仅当存在任一时间线筛选/选中状态时写入 `tlv=2`。
+    - 无筛选状态时自动清理 `tlv`，保持 URL 简洁。
+  - 结果：新链接结构更短、更稳，旧链接不失效，并会在首次交互后自动迁移到 `v2` 参数格式。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-38，legacy 链接迁移一次性提示）:
+  - 监控页新增 legacy 参数迁移提示机制：
+    - 检测到 URL 中包含旧参数键（`tlCategory/tlSeverity/tlAction/tlReason/tlEvent/tlExport`）且发生自动迁移时，弹出一次 `toast.info` 提示。
+    - 提示内容：`Legacy timeline link upgraded to v2 query format.`
+  - 去重策略：
+    - 使用 `legacyTimelineLinkNoticeShownRef` 保证同一次页面会话中仅提示一次，避免重复打扰。
+  - 目的：
+    - 让排查分享链接来源时可见“已从 legacy 自动迁移”，便于定位历史链接和新链接差异。
+  - 回归验证：
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-39，链接迁移兼容校验脚本上线）:
+  - 监控页 URL 参数逻辑完成模块化下沉：
+    - 新增 `apps/portal/src/lib/timelineQueryParams.ts`，集中维护 timeline query 的：
+      - v2/legacy 参数键定义
+      - 参数解析与规范化
+      - legacy 检测
+      - 统一写回与 `tlv` 版本标记逻辑
+    - `InterviewMonitorPage` 改为复用该模块，减少页面内重复逻辑，便于后续演进。
+  - 新增可执行兼容断言脚本：
+    - `scripts/check-timeline-link-compat.ts`
+    - 覆盖断言：
+      1) legacy 参数可被检测并迁移到 v2，且 legacy 键被清理；
+      2) v2 参数优先级高于 legacy；
+      3) 空筛选状态下不写入版本标记与查询键。
+  - 根脚本新增：
+    - `npm run test:timeline-link:compat`
+  - 回归验证：
+    - `npm run test:timeline-link:compat` 通过。
+    - `npm --workspace @hireflow/portal run build` 通过。
+    - `npm run type-check` 通过。
+    - `node --check scripts/e2e-core-smoke.mjs` 通过。
+    - `node --check scripts/e2e-auth-policy.mjs` 通过。
+    - `npm run test:e2e:smoke` 失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-40，e2e-all 前置链接兼容拦截）:
+  - 把 timeline 链接兼容校验接入 `test:e2e:all` 前置步骤：
+    - `package.json` 中 `test:e2e:all` 变更为：
+      - `npm run test:timeline-link:compat && node scripts/run-e2e-api.mjs --all`
+    - 目的：CI/本地执行全套 API E2E 前，先阻断 URL 参数迁移兼容回归。
+  - README 测试章节更新：
+    - 新增 `npm run test:timeline-link:compat` 单独命令说明。
+    - 明确 `test:e2e:all` 已包含该 compat precheck。
+  - 回归验证：
+    - `npm run test:timeline-link:compat` 通过。
+    - `npm run test:e2e:all` 先执行 compat 校验通过，再进入 API E2E runner。
+    - `npm run test:e2e:all` 后续失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-15（继续开发-41，api/smoke 命令统一前置 compat 校验）:
+  - 将 timeline 链接兼容校验扩展到主用 E2E 命令：
+    - `test:e2e:api` 改为：
+      - `npm run test:timeline-link:compat && node scripts/run-e2e-api.mjs`
+    - `test:e2e:smoke` 改为：
+      - `npm run test:timeline-link:compat && node scripts/run-e2e-api.mjs smoke`
+  - README 测试章节同步更新：
+    - `test:e2e:api` 说明补充“先执行 timeline-link compat precheck”。
+    - `test:e2e:smoke` 说明补充“包含 timeline-link compat precheck”。
+  - 回归验证：
+    - `npm run test:e2e:api` 输出确认：先执行 `test:timeline-link:compat`，后进入 e2e runner。
+    - `npm run test:e2e:smoke` 输出确认：先执行 `test:timeline-link:compat`，后进入 e2e runner。
+    - 两命令后续均失败（环境阻断）：本地 Docker daemon 未运行，无法自动拉起 Postgres（报告写入 `artifacts/e2e-api-report.json`）。
+- 2026-02-26（继续开发-42，Codex OAuth 状态持久化闭环 + 小梵语音链路自恢复）:
+  - Codex OAuth 回调状态管理补齐：
+    - pending state 结构新增 `persistedLogId`，内存命中也能回收 DB 挂起记录。
+    - 新增 `consumeCodexOauthPendingState(...)`，统一处理成功/失败分支的状态消费，避免残留可重放窗口。
+    - token 交换失败、回调参数异常等终态路径均会触发 pending consumed 标记。
+  - 小梵语音面试可靠性增强：
+    - STT 失败与空转写不再静默；新增 `speech_capture_hint` 事件提示候选人重试。
+    - 连续 STT 失败/空转写触发自动降级：后端下发 `voice_mode: browser`，保证面试不中断。
+    - 新增可配置阈值与冷却：`XIAOFAN_STT_FAILURE_FALLBACK_THRESHOLD`、`XIAOFAN_STT_EMPTY_FALLBACK_THRESHOLD`、`XIAOFAN_STT_FALLBACK_HOLD_MS`、`XIAOFAN_SPEECH_CAPTURE_HINT_COOLDOWN_MS`。
+    - 候选人端接入 `speech_capture_hint` 提示显示。
+  - 回归验证：
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke:direct` 通过。
+    - `npm run test:e2e:voice:direct` 通过（无健康 key 场景下按预期 SKIP 实时断言）。
+- 2026-02-26（继续开发-43，正式面试语音链路稳态化）:
+  - 小梵回合处理新增“被动收尾”机制：
+    - 不再仅依赖前端 `vad_event:speaking_stop`。
+    - 当持续收到候选人音频后出现空闲窗口（`XIAOFAN_PASSIVE_TURN_IDLE_MS`）会自动触发 turn 处理，避免漏触发导致“小梵不说话”。
+  - 小梵短回答识别判定增强：
+    - 新增 `XIAOFAN_MIN_TURN_AUDIO_CHUNKS`，音频总字节不足时按“字节+分片数”联合判定，降低短句误丢弃概率。
+  - 候选人端文本兜底模式修复：
+    - 在“浏览器不支持 SpeechRecognition 的文本输入兜底模式”下，前端停止麦克风录音，不再向后端发送无效音频。
+  - 环境配置补全：
+    - `.env.example` / `server/.env.example` 新增 `XIAOFAN_MIN_TURN_AUDIO_CHUNKS`、`XIAOFAN_PASSIVE_TURN_IDLE_MS`。
+  - 回归验证：
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke:direct` 通过。
+    - `npm run test:e2e:voice:direct` 通过（无健康 key 场景下按预期 SKIP）。
+- 2026-02-26（继续开发-44，面试对话策略控制强化）:
+  - 小梵对话控制新增“轮次目标指令”：
+    - 在每轮生成前注入回合控制指令（当前轮次、当前主问题、下一题方向、追问句式、输出约束）。
+    - 目标：减少 AI 漂移，提高“基于岗位问题路线”的追问稳定性。
+  - 新增“提前收尾拦截”：
+    - 增加 `XIAOFAN_MIN_USER_TURNS_BEFORE_WRAP`（默认 5）。
+    - 在最低轮次前若识别到“结束面试/感谢参与”等收尾语句，会自动改写为继续追问，避免面试过早结束。
+  - 候选人端降级提示优化：
+    - 收到 `voice_mode` 且带 `fallbackReason` 时，前端显示“已切换浏览器语音识别”的明确提示，减少无反馈困惑。
+  - 环境示例更新：
+    - `.env.example` / `server/.env.example` 新增 `XIAOFAN_MIN_USER_TURNS_BEFORE_WRAP`。
+  - 回归验证：
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke:direct` 通过。
+    - `npm run test:e2e:voice:direct` 通过（无健康 key 场景下按预期 SKIP）。
+- 2026-02-26（继续开发-45，screening 模块多租户隔离加固）:
+  - 修复筛选评估接口的跨租户访问缺口：
+    - `POST /api/screening/evaluate`：新增 rule.companyId 校验，非本公司规则返回 404。
+    - `POST /api/screening/batch-evaluate`：新增 rule.companyId 校验，并限制候选人查询为当前公司数据。
+  - 新增 E2E 隔离套件：
+    - `scripts/e2e-screening-isolation.mjs` 覆盖“双租户 + 同规则 id”场景：
+      1) 本租户可评估；
+      2) 跨租户 evaluate 被拒绝（404）；
+      3) 跨租户 batch-evaluate 被拒绝（404）。
+  - E2E runner & 命令补全：
+    - `scripts/run-e2e-api.mjs` 的 `--all` 已纳入 screening isolation 套件，新增别名 `screening`。
+    - 根脚本新增 `npm run test:e2e:screening:direct`。
+    - README 补充新套件命令与 `test:e2e:all` 覆盖说明。
+  - 回归验证：
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:screening:direct` 通过。
+    - `npm run test:e2e:smoke:direct` 通过。
+    - `npm run test:e2e:voice:direct` 通过（无健康 key 场景下按预期 SKIP）。
+- 2026-02-26（继续开发-46，小梵 STT 自动恢复闭环）:
+  - 修复语音识别降级后无法自动恢复的问题：
+    - 当后端因连续识别失败切到 `browser STT` 后，会在 hold 窗口结束自动尝试恢复 `server STT`。
+    - 恢复成功时通过 websocket 推送 `voice_mode { stt: 'server', recovered: true }`，避免“长期停留在低精度模式”。
+  - 小梵会话资源回收增强：
+    - 新增 `pendingSttRecoveryTimer` 并在 `dispose` 时统一清理，避免会话释放后残余计时器。
+  - 候选人端提示增强：
+    - 收到 `voice_mode.recovered=true` 时显示“语音识别已恢复高精度模式”提示。
+  - 回归验证：
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke:direct` 通过。
+    - `npm run test:e2e:voice:direct` 通过（无健康 key 场景下按预期 SKIP）。
+- 2026-02-26（继续开发-47，上线场景 API key 接入回归链路）:
+  - 小梵语音 E2E 改造为“可接真实 key + 可严格失败”：
+    - `scripts/e2e-voice-path.mjs` 新增自动 key 引导逻辑，会优先读取：
+      - `HIREFLOW_E2E_AI_PROVIDER + HIREFLOW_E2E_AI_KEY`
+      - 或已有 `OPENAI_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY / DEEPSEEK_API_KEY / ALIBABA_API_KEY`
+    - 自动完成：`/api/settings/keys` 接入 -> `/api/settings` 模型绑定 -> `/api/settings/models` 连通性校验。
+    - 新增 `HIREFLOW_E2E_REQUIRE_AI_KEY=true` 严格模式：无 key 或 key 接入后仍无法启动面试将直接失败，不再 SKIP。
+  - E2E runner 与命令补齐：
+    - `scripts/run-e2e-api.mjs` 的 `--all` 新增 voice-path 套件；新增别名 `voice`。
+    - 根脚本新增 `npm run test:e2e:voice`（含 timeline-link precheck）。
+  - 配置与文档补齐：
+    - `.env.example` / `server/.env.example` 增加 voice E2E key 相关变量说明。
+    - README E2E 章节补充 voice 套件与严格模式用法。
+  - 回归验证：
+    - `npm run type-check` 通过。
+    - `npm run test:e2e:smoke:direct` 通过。
+    - `npm run test:e2e:screening:direct` 通过。
+    - `npm run test:e2e:voice:direct` 通过（无 key 场景下按预期 SKIP）。
+    - `npm run test:e2e:voice` 通过。
+    - `npm run test:e2e:all` 通过（含 voice-path 套件）。

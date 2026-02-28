@@ -17,6 +17,16 @@
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "check:utf8": "node scripts/check-utf8.mjs",
+    "test:e2e:api": "npm run test:timeline-link:compat && node scripts/run-e2e-api.mjs",
+    "test:e2e:api:direct": "node scripts/e2e-auth-policy.mjs",
+    "test:e2e:smoke": "npm run test:timeline-link:compat && node scripts/run-e2e-api.mjs smoke",
+    "test:e2e:voice": "npm run test:timeline-link:compat && node scripts/run-e2e-api.mjs voice",
+    "test:e2e:smoke:direct": "node scripts/e2e-core-smoke.mjs",
+    "test:e2e:screening:direct": "node scripts/e2e-screening-isolation.mjs",
+    "test:e2e:rate-limit:direct": "node scripts/e2e-public-rate-limit.mjs",
+    "test:e2e:voice:direct": "node scripts/e2e-voice-path.mjs",
+    "test:e2e:all": "npm run test:timeline-link:compat && node scripts/run-e2e-api.mjs --all",
+    "test:timeline-link:compat": "tsx scripts/check-timeline-link-compat.ts",
     "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {

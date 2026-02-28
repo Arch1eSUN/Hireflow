@@ -1,1129 +1,312 @@
-# HireFlow AI — **Production Launch Blueprint** (Rev 6)
+# HireFlow AI — 现状评审与上线落地方案（Rev 8）
 
-> **Document Purpose**: The **AUTHORITATIVE** guide for moving HireFlow AI from current MVP to a **Production-Ready** SaaS product.
-> **Last Updated**: 2026-02-13 03:13 CST
-> **Revision**: 6 — Project Vision, Gap Analysis & "Distance to Landing" detail added.
-
----
-
-## 0. Project Overview & Status
-
-### 0.1 Product Vision
-HireFlow AI is an enterprise-grade **Intelligent Recruitment System** designed to reduce hiring time by **80%**. It bridges the gap between traditional **ATS** (Applicant Tracking Systems) and **Agentic AI**, automating the high-volume, low-value tasks of sourcing and screening so HR can focus on closing candidates.
-
-**Core Capabilities**:
-1.  **🤖 Smart Screening**: Automatically parses resumes and scores them against granular job requirements using a configurable Rule Engine (Boolean logic + Semantic Matching).
-2.  **🎥 AI Interviewer**: Conducts **24/7 video/audio interviews** using LLMs (Gemini/GPT-4) to ask dynamic, context-aware technical questions while detecting cheating and analyzing soft skills.
-3.  **📊 Data-Driven Hiring**: Provides real-time pipeline analytics, conversion funnels, and granular AI cost monitoring to optimize recruitment ROI.
-
-### 0.2 Gap Analysis: Distance to Production ("落地")
-To reach a production-ready **V1.0**, the system requires crossing three major technical bridges:
-
-1.  **The Intelligence Bridge (Phase 5)** 🔴
-    *   **Current**: Frontend mutations work, but `/ai/chat` and screening endpoints rely on hardcoded mocks.
-    *   **Needed**: Migrate `AIGateway` to `server/`, wire up real LLM keys (OpenAI/Gemini), and activate the scoring logic.
-
-2.  **The Real-Time Bridge (Phase 6)** 🔴
-    *   **Current**: `InterviewRoomPage` is a UI shell.
-    *   **Needed**: Implement **WebRTC** for video/audio capture and **WebSocket** for real-time Q&A orchestration. Connect Speech-to-Text (STT) and Text-to-Speech (TTS) services.
-
-3.  **The Infrastructure Bridge (Phase 7-8)** 🟡
-    *   **Current**: Database is active, but file storage and caching are dormant.
-    *   **Needed**: Activate **MinIO** for resume/recording storage and **Redis** for session/rate-limiting.
-
-### 0.3 Planned But Not Fully Implemented (The "To-Do" List)
-These features have UI representation or database schemas but lack full backend logic:
-
-*   **Screening Rule Builder**: The UI (`ScreeningPage`) exists for creating complex filtering rules like "(Experience > 3y AND Python) OR (Experience > 5y AND Java)", but the backend CRUD and execution engine are not wired.
-*   **Live Interview Monitor**: The `InterviewMonitorPage` exists for HR to watch interviews in real-time, but currently displays static dummy data.
-*   **Notification System**: The bell icon and dropdown exist, but they pull from a temporary in-memory mocked list, not the database.
-*   **File Uploads**: The database has fields for `resumeUrl` and `recordingUrl`, but there is no API to handle file uploads to MinIO.
-*   **API Key Management**: The `SettingsPage` UI has a place for AI settings, but the secure management of multiple provider keys (encryption/decryption flows) is partial.
-
-### Completion Matrix
-
-| Layer | Status | Completion |
-|:------|:-------|:-----------|
-| Infrastructure (Docker, Prisma, PostgreSQL) | ✅ Complete | 100% |
-| Authentication (JWT, Refresh, RBAC) | ✅ Complete | 100% |
-| Core CRUD APIs (Candidates, Jobs, Interviews) | ✅ Complete | 95% |
-| Frontend — Data Binding (useQuery) | ✅ Complete | 100% |
-| Frontend — Mutations (useMutation) | ✅ Complete | 95% |
-| Frontend — Design System (M3) | ✅ Complete | 90% |
-| Settings Configuration | ✅ Complete | 100% |
-| API Key Management | 🟡 UI Only | 20% |
-| AI Services (LLM Gateway, Screening) | 🟡 Scaffolded | 15% |
-| Real-Time Interview (WebSocket, WebRTC) | 🟡 Scaffolded | 10% |
-| Notifications (Real) | ⬜ Mock Data | 5% |
-| Resume Upload (MinIO) | ⬜ Not Started | 0% |
+> **文档用途**：作为当前代码真实状态的“上线评审基线”，用于回答：现在做到哪了、还差什么、多久能上线、接下来怎么做。  
+> **Last Updated**：2026-02-14  
+> **Revision**：8（替换旧版 Rev 7 的过时结论，按当前代码与验证结果重写）
 
 ---
 
-## 1. Architecture & Tech Stack
+## 0. 结论先行（Executive Summary）
 
-### 1.1 Monorepo Structure (Turborepo)
-
-```
-hireflow-ai/
-├── apps/
-│   ├── portal/          # Enterprise Console (React 19, Vite, Port 3004)
-│   └── interview/       # Candidate Interface (React 19, Vite, Port 3005)
-├── server/              # Backend API (Fastify, Prisma, Port 4000)
-├── packages/
-│   └── shared/
-│       ├── i18n/        # Internationalization (zh-CN, en-US)
-│       ├── types/       # Shared TypeScript types
-│       ├── utils/       # Common utilities (cn, formatNumber, getGreeting)
-│       └── ui/          # Shared UI components (placeholder)
-├── src/                 # ⚠️ LEGACY — Pre-monorepo code (aiGateway, ruleEngine)
-└── services/            # ⚠️ LEGACY — Pre-monorepo services
-```
-
-### 1.2 Tech Stack Detail
-
-| Layer | Technology | Notes |
-|:------|:-----------|:------|
-| **Runtime** | Node.js 24 | LTS |
-| **Frontend** | React 19 + Vite | Code-split with `lazy()` |
-| **Styling** | Tailwind CSS v4 + Custom M3 Design System | `index.css` (1040+ lines) |
-| **State** | Zustand (auth) + TanStack Query v5 (server) | Persist middleware for auth |
-| **Forms** | React Hook Form + Zod | Schema-validated mutations |
-| **Animation** | Framer Motion | Page transitions, card reveals |
-| **Backend** | Fastify | HTTP + WebSocket |
-| **ORM** | Prisma | PostgreSQL |
-| **Database** | PostgreSQL 16 (Docker) | Port 5433 |
-| **Cache** | Redis (Docker) | Port 6379, **not yet used** |
-| **Storage** | MinIO (Docker) | Port 9000/9001, **not yet used** |
-| **Build** | Turborepo | `npm run dev` starts all apps |
-
-### 1.3 Core Design Principles
-
-| # | Principle | Status |
-|:--|:----------|:-------|
-| 1 | **Zero Dead Buttons** — Every action triggers a real API call + UI feedback | 🟡 95% (ScreeningPage, InterviewMonitor still static) |
-| 2 | **Zero Placeholders** — No "Coming Soon" screens | 🟡 ScreeningPage is static, InterviewMonitor is static |
-| 3 | **Absolute Security** — API keys encrypted AES-256 in DB, never exposed to frontend | ✅ Schema ready, encryption utils exist |
-| 4 | **Full Data Flow** — Auth → Fetch → Mutate → Invalidate → Toast | ✅ Implemented for all CRUD pages |
-| 5 | **Google M3 Aesthetics** — Liquid Glass sidebar, de-bordered cards, Inter font | ✅ CSS design system complete |
+1. **项目已从“UI 原型”进入“可运行 MVP + 监控链路”阶段**，核心业务链路（认证、岗位/候选人/面试、筛选规则、面试监控、证据导出）已具备。
+2. **当前不适合直接生产上线**，主要卡点不是“功能缺失”，而是：
+   - 安全与配置硬化（默认密钥回退、环境校验、生产配置治理）
+   - 工程质量闸门（`type-check` 未全绿）
+   - 端到端验证与运维落地（自动化、部署、监控、告警、备份）
+3. **进度评估（面向正式上线）**：约 **72%**。  
+   - 功能完成度高（约 82%）
+   - 但上线工程化成熟度偏低（约 55%-60%）
+4. **时间预估（按 2-3 名全职开发，需求不大改）**：
+   - **可控 Beta**：还需 **3-4 周**（预计 2026-03-14 ~ 2026-03-28）
+   - **生产上线**：还需 **6-8 周**（预计 2026-04-04 ~ 2026-04-25）
 
 ---
 
-## 2. Database (Prisma Schema)
+## 1. 代码现况（按模块）
 
-### 2.1 Entity Relationship
+### 1.1 Portal 管理端（`apps/portal`）
 
-```
-Company
- ├── Users[]              # Multi-tenant user management
- ├── CompanySettings      # AI config, security, notifications, privacy
- ├── ApiKeyStore[]        # AES-256 encrypted AI provider keys
- ├── Integrations[]       # Third-party connections (Calendar, Slack, etc.)
- ├── AuditLog[]           # Security & compliance events
- ├── Jobs[]
- │    ├── Candidates[]
- │    │    └── Interviews[]
- │    │         ├── InterviewFeedback[]  # Candidate satisfaction ratings
- │    │         └── Evaluation[]         # AI or human scoring
- │    └── Interviews[]
- └── Candidates[]
-```
+**已具备能力**
+- 认证流：登录/注册/refresh/logout 基础链路可用。
+- 招聘核心：Candidates / Jobs / Interviews / Screening / Analytics / Settings 页面齐全。
+- 监控中心：实时监控页已具备
+  - 策略配置与模板应用
+  - 策略历史与回滚
+  - 证据导出（JSON/CSV/Bundle）
+  - Evidence Timeline（含筛选、详情、导出）
+- UI 方向：整体向 Google/Material 风格演进，信息密度与可读性较好。
 
-### 2.2 Key Models & Fields
+**现存问题**
+- API 与 WS 地址仍存在本地回退写法（`localhost`），生产环境切换风险高。
+- `InterviewMonitorPage` 逻辑体量偏大，后续维护与回归成本高。
 
-| Model | Key Fields | Notes |
-|:------|:-----------|:------|
-| **Company** | `name, logo, primaryColor, welcomeText` | Supports white-labeling |
-| **User** | `email, name, passwordHash, role, companyId` | Roles: `owner, admin, hr_manager, interviewer, viewer` |
-| **CompanySettings** | `defaultModelId, temperature, maxTokens, antiCheatEnabled, ...` | 20+ configurable fields |
-| **ApiKeyStore** | `provider, encryptedKey, baseUrl, status, cachedModels` | `@@unique([companyId, provider])` |
-| **Job** | `title, department, location, type, descriptionJd, requirements[], status, salaryRange(JSON), candidateCount, pipeline(JSON)` | Status: `draft, active, closed, paused` |
-| **Candidate** | `name, email, phone, stage, score, skills[], verificationStatus, tags[], source, resumeUrl` | Stage: `applied → screening → interview_1 → interview_2 → offer → hired / rejected` |
-| **Interview** | `token(unique), status, type, startTime, endTime, score, feedback, recordingUrl, transcriptUrl, reportUrl` | Token-based public access |
-| **Evaluation** | `evaluatorId, scores(JSON), comment, vote` | Supports both human and AI evaluators (`evaluatorId = 'AI'`) |
+### 1.2 Interview 面试者端（`apps/interview`）
 
-### 2.3 Docker Compose Services
+**已具备能力**
+- Landing / Device Check / Waiting / Interview / Complete 完整流程。
+- 面试房间：
+  - 全屏与屏幕共享约束
+  - 违规事件采集上报
+  - WebSocket 实时消息
+  - WebRTC 屏幕流信令
+  - 代码同步（管理端镜像）
+  - 剪贴板/快捷键限制（策略可控）
 
-```yaml
-PostgreSQL 16 Alpine  →  Port 5433:5432  (hireflow-postgres)
-Redis                →  Port 6379       (hireflow-redis)    # Not yet utilized
-MinIO                →  Port 9000/9001  (hireflow-minio)    # Not yet utilized
-```
+**现存问题**
+- `InterviewRoomPage` 单文件职责过重（安全策略、音频、WS、WebRTC、UI 混杂）。
+- 存在 `localhost` 回退逻辑，生产域名场景下容易出现连接误判。
+- TS 静态检查存在 1 个明确错误（见第 2 节验证结果）。
 
----
+### 1.3 Backend（`server/src`）
 
-## 3. Authentication System ✅ COMPLETE
+**已具备能力**
+- Fastify 模块化路由（auth/jobs/candidates/interviews/screening/settings/websocket/...）。
+- JWT + refresh cookie 认证体系。
+- AI Gateway 多 provider（OpenAI/Gemini/Claude/Local）与 key 管理。
+- 监控策略模板、历史、回滚、批量下发（含 dry-run）。
+- 证据导出记录接口与时间轴聚合接口。
+- WebSocket 房间态与 candidate/monitor 分权连接。
 
-### 3.1 Flow Diagram
+**现存问题**
+- 安全默认值存在“开发兜底密钥”风险（JWT / cookie secret / encryption key）。
+- 仍保留旧版 `server/index.ts`（历史文件），有误用与认知混淆风险。
+- 生产级运行能力未完整闭环（迁移/备份/监控/告警/runbook）。
 
-```
-[Register/Login]
-     ↓
-POST /auth/login → { accessToken (15min), refreshToken (7d, HTTP-Only Cookie) }
-     ↓
-[Frontend stores accessToken in Zustand (localStorage persist)]
-     ↓
-[API requests → Axios interceptor adds Bearer token]
-     ↓
-[401 Error?]
-     ├── YES → Auto-refresh via POST /auth/refresh (Cookie) → Retry original request
-     │         Queue concurrent requests during refresh → Process queue after
-     └── NO  → Continue normally
-     ↓
-[Refresh fails?] → Logout + redirect to /login
-```
+### 1.4 数据层（Prisma/Postgres）
 
-### 3.2 Auth Endpoints
+**已具备能力**
+- 关键业务实体已建模（Company/User/Job/Candidate/Interview/Settings/Audit/...）。
+- 首个初始化迁移已存在。
 
-| Endpoint | Method | Description |
-|:---------|:-------|:------------|
-| `/api/auth/register` | POST | Creates Company + User + CompanySettings → returns tokens |
-| `/api/auth/login` | POST | Validates email/password → returns tokens |
-| `/api/auth/refresh` | POST | Reads HTTP-Only cookie → issues new accessToken |
-| `/api/auth/logout` | POST | Clears refreshToken cookie |
-| `/api/auth/me` | GET | Returns current user from JWT |
-
-### 3.3 Frontend Auth Components
-
-| Component | Purpose |
-|:----------|:--------|
-| `authStore.ts` | Zustand persist store: `login(token, user)`, `logout()`, `updateUser()` |
-| `api.ts` | Axios instance with request interceptor (attach token) + response interceptor (auto-refresh flow) |
-| `RequireAuth.tsx` | Route guard — redirects to `/login` if not authenticated |
+**现存问题**
+- 仅有初始迁移，后续演进策略与回滚预案不足。
+- 索引、审计数据保留策略、归档策略尚未显式标准化。
 
 ---
 
-## 4. Backend API Reference
+## 2. 当前可复现验证结果（2026-02-14 实测）
 
-### 4.1 Complete Route Inventory
+### 2.1 构建
+- 命令：`npm run build`
+- 结果：**通过**（portal/interview/server 全通过）
 
-#### Core CRUD Routes
+### 2.2 类型检查
+- 命令：`npm run type-check`
+- 结果：**失败（1 个错误）**
+- 错误位置：`apps/interview/src/pages/DeviceCheckPage.tsx:61`
+- 问题类型：TS2774（条件永真）
 
-| Route | Methods | File | Auth | Description |
-|:------|:--------|:-----|:-----|:------------|
-| `/api/candidates` | GET, POST | `candidates.ts` | ✅ | List (search, filter, paginate) / Create candidate |
-| `/api/candidates/:id` | GET, PUT, DELETE | `candidates.ts` | ✅ | Detail / Update / Delete (cascade: feedback→eval→interview) |
-| `/api/candidates/:id/stage` | PUT | `candidates.ts` | ✅ | Update candidate stage only |
-| `/api/jobs` | GET, POST | `jobs.ts` | ✅ | List (search, filter, paginate) / Create job |
-| `/api/jobs/:id` | GET, PUT, DELETE | `jobs.ts` | ✅ | Detail (with pipeline stats) / Update / Delete (cascade) |
-| `/api/interviews` | GET, POST | `interviews.ts` | ✅ | List (with candidate & job names) / Create (auto-generate token) |
-| `/api/interviews/:id` | GET, PUT | `interviews.ts` | ✅ | Detail / Update |
-
-#### Public Routes (Candidate-Facing)
-
-| Route | Method | Auth | Description |
-|:------|:-------|:-----|:------------|
-| `/api/public/interview/:token` | GET | ❌ | Candidate fetches interview details by token |
-| `/api/public/interview/:token/start` | POST | ❌ | Candidate starts interview session |
-| `/api/public/interview/:token/end` | POST | ❌ | Candidate ends interview session |
-
-#### Settings & Team Routes
-
-| Route | Methods | File | Auth | RBAC | Description |
-|:------|:--------|:-----|:-----|:-----|:------------|
-| `/api/team` | GET | `team.ts` | ✅ | Any | List company members |
-| `/api/team/:id` | PUT | `team.ts` | ✅ | Admin/Owner | Update member role |
-| `/api/team/:id` | DELETE | `team.ts` | ✅ | Admin/Owner | Remove member |
-| `/api/settings` | GET | `settings.ts` | ✅ | Any | Get company settings (or create defaults) |
-| `/api/settings` | PUT | `settings.ts` | ✅ | Admin/Owner | Update settings (Zod validated) |
-
-#### Analytics & System Routes
-
-| Route | Method | File | Auth | Description |
-|:------|:-------|:-----|:-----|:------------|
-| `/api/analytics/overview` | GET | `analytics.ts` | ✅ | Dashboard KPIs, funnel, schedule, trends, AI cost |
-| `/api/notifications` | GET | `notifications.ts` | ❌ | ⚠️ **MOCK DATA** — returns hardcoded notifications |
-| `/api/notifications/:id/read` | POST | `notifications.ts` | ❌ | ⚠️ **MOCK** — marks notification as read in memory |
-| `/api/ai/chat` | POST | `ai.ts` | ❌ | ⚠️ **MOCK** — returns simulated AI response |
-| `/api/screening/evaluate` | POST | `ai.ts` | ❌ | ⚠️ **MOCK** — returns simulated screening result |
-| `/api/ws/interview/stream` | WebSocket | `websocket.ts` | ❌ | ⚠️ **MOCK** — simulated interview Q&A via WS |
-| `/api/health` | GET | `index.ts` | ❌ | Server health check |
-
-### 4.2 API Design Patterns
-
-- **Multi-tenancy**: All queries include `WHERE companyId = user.companyId`
-- **Validation**: Zod schemas on POST/PUT bodies
-- **Pagination**: `?page=1&pageSize=20` (default 20)
-- **Cascade Deletions**: Delete order: InterviewFeedback → Evaluation → Interview → Candidate → Job
-- **Error Handling**: `try/catch` → `reply.status(err.statusCode || 500).send({ error: err.message })`
+### 2.3 E2E API 脚本
+- 命令：`npm run test:e2e:api`
+- 结果：**失败**（不是逻辑断言失败，而是 server 未启动）
+- 报错：`Cannot reach server health endpoint`（提示需先 `npm run dev:server`）
 
 ---
 
-## 5. Frontend — Enterprise Console (`apps/portal`)
+## 3. 现存问题清单（按优先级）
 
-### 5.1 Routing
+### P0（上线阻断）
+1. **类型检查未全绿**  
+   - `apps/interview/src/pages/DeviceCheckPage.tsx:61`
+2. **安全兜底密钥存在生产误用风险**  
+   - `server/src/utils/encryption.ts:5`（固定默认密钥）
+   - `server/src/utils/jwt.ts:3`（JWT 默认 secret）
+   - `server/src/index.ts:63`（cookie secret 默认值）
+   - `server/src/routes/websocket.ts:39`（JWT verify 默认 secret）
+3. **生产环境配置治理不完整**  
+   - 多处 `localhost` 回退（Portal/Interview/API/WS）
 
-```
-Public Routes:
-  /login           → LoginPage       (M3 styled, i18n, dark mode ready)
-  /register        → RegisterPage    (M3 styled, i18n, dark mode ready)
+### P1（高优先优化）
+1. **大页面文件过重，维护成本高**  
+   - `apps/interview/src/pages/InterviewRoomPage.tsx`
+   - `apps/portal/src/pages/InterviewMonitorPage.tsx`
+2. **旧入口文件残留，影响团队认知一致性**  
+   - `server/index.ts` 与 `server/src/index.ts` 并存
+3. **E2E 缺乏一键可执行基础设施**  
+   - 当前脚本依赖人工提前启动服务
 
-Protected Routes (RequireAuth → Layout with sidebar):
-  /                → Redirect to /dashboard
-  /dashboard       → Dashboard       (KPIs, Funnel, Schedule, Trends, AI Cost)
-  /candidates      → CandidatesPage  (Search, Filter, Add Modal)
-  /candidates/:id  → CandidateDetailPage (Profile, Timeline, Stage, Delete)
-  /jobs            → JobsPage        (Search, Create, Status Update, Delete)
-  /interviews      → InterviewsPage  (Tabs, Create Modal, Copy Link)
-  /screening       → ScreeningPage   ⚠️ UI-Only, no backend
-  /analytics       → AnalyticsPage   (KPIs, Charts from real API)
-  /team            → TeamPage        (List, Role Edit, Remove Member)
-  /settings        → SettingsPage    (AI Config, Security, Notifications, Privacy)
-
-Protected (Standalone — no sidebar):
-  /interviews/:id/monitor → InterviewMonitorPage  ⚠️ Static placeholder
-```
-
-### 5.2 Page Implementation Status
-
-| Page | API Binding | Mutations | i18n | Dark Mode | Status |
-|:-----|:------------|:----------|:-----|:----------|:-------|
-| **LoginPage** | `POST /auth/login` | ✅ Login | ✅ | ✅ | ✅ Complete |
-| **RegisterPage** | `POST /auth/register` | ✅ Register | ✅ | ✅ | ✅ Complete |
-| **Dashboard** | `GET /analytics/overview` | — | ✅ | ✅ | ✅ Complete |
-| **CandidatesPage** | `GET /candidates` | ✅ Create (Modal) | ✅ | ✅ | ✅ Complete |
-| **CandidateDetailPage** | `GET /candidates/:id` | ✅ Stage, Delete, Reject | ✅ | ✅ | ✅ Complete |
-| **JobsPage** | `GET /jobs` | ✅ Create, Status, Delete | ✅ | ✅ | ✅ Complete |
-| **InterviewsPage** | `GET /interviews` | ✅ Create (Modal), Copy Link | ✅ | ✅ | ✅ Complete |
-| **AnalyticsPage** | `GET /analytics/overview` | — | ✅ | ✅ | ✅ Complete |
-| **TeamPage** | `GET /team` | ✅ Role Update, Remove | ✅ | ✅ | ✅ Complete |
-| **SettingsPage** | `GET/PUT /settings` | ✅ Save All | ✅ | ✅ | ✅ Complete |
-| **ScreeningPage** | ❌ None | ❌ | ✅ | ✅ | 🟡 UI Only |
-| **InterviewMonitorPage** | ❌ None | ❌ | ✅ | — | 🔴 Placeholder |
-
-### 5.3 Component Inventory
-
-```
-apps/portal/src/
-├── App.tsx                                    # Router, QueryClient, Toaster
-├── main.tsx                                   # React 19 root render
-├── index.css                                  # M3 Design System (1040+ lines)
-├── components/
-│   ├── Layout.tsx                             # Sidebar + Topbar + content area
-│   ├── auth/RequireAuth.tsx                   # Auth route guard
-│   ├── candidates/AddCandidateModal.tsx       # RHF + Zod form
-│   ├── interviews/CreateInterviewModal.tsx    # RHF + Zod form
-│   ├── jobs/AddJobModal.tsx                   # RHF + Zod form
-│   ├── ui/EmptyState.tsx                      # Reusable empty state with SVG icons
-│   └── ui/Toast.tsx                           # Sonner with M3 styling
-├── hooks/
-│   └── useDebounce.ts                         # 300ms debounce for search inputs
-├── stores/
-│   └── authStore.ts                           # Zustand persist store
-├── lib/
-│   └── api.ts                                 # Axios + token refresh interceptor
-├── contexts/
-│   └── ThemeContext.tsx                        # Light/Dark/System theme
-├── data/
-│   └── mockData.ts                            # ⚠️ LEGACY — no longer imported
-└── pages/
-    └── (12 page files)
-```
-
-### 5.4 Design System — CSS Token Architecture
-
-The `index.css` file implements a complete Google Material 3 design system:
-
-| Category | Key Tokens | Examples |
-|:---------|:-----------|:--------|
-| **Colors** (Light) | `--color-primary: #1A73E8`, `--color-surface: #FFFFFF`, `--color-error: #D93025` | 16 color tokens |
-| **Colors** (Dark) | `--color-primary: #8AB4F8`, `--color-surface: #1F1F1F` | All 16 overridden in `.dark` |
-| **Typography** | `text-display-large`, `text-headline-medium`, `text-body-medium`, `text-label-small` | 10 type scales |
-| **Buttons** | `btn-filled`, `btn-outlined`, `btn-tonal`, `btn-text`, `btn-danger`, `btn-icon` | + `btn-lg` size variant |
-| **Cards** | `card`, `card-hover`, `card-elevated` | De-bordered, shadow-based |
-| **Inputs** | `input`, `input-compact`, `m3-input` | Focus: 2px primary border |
-| **Chips** | `chip-primary`, `chip-success`, `chip-error`, `chip-warning`, `chip-neutral` | 5 semantic variants |
-| **Sidebar** | `sidebar`, `nav-item`, `nav-item.active` | Liquid Glass blur effect |
-| **Topbar** | `topbar` | Glass blur, sticky |
-| **Auth Pages** | `auth-page`, `auth-card`, `auth-input`, `auth-submit`, `auth-logo` | Glassmorphism card + gradient BG |
-| **Animations** | `animate-fade-in-up`, `animate-stagger`, `pulse-live` | M3 easing curves |
+### P2（持续改进）
+1. README 与实际能力不一致（文档滞后）。
+2. 关键接口契约（WS 消息）尚未形成严格 schema + 版本策略。
+3. 监控证据与审计日志增长后的性能与归档策略需前置。
 
 ---
 
-## 6. Frontend — Candidate Interface (`apps/interview`)
+## 4. 可能出现的问题（未来 1-3 个月）
 
-### 6.1 Flow
-
-```
-/:token          → LandingPage       # Welcome, verify interview token
-/:token/device   → DeviceCheckPage   # Camera/mic permissions check
-/:token/waiting  → WaitingRoomPage   # Countdown/preparation
-/:token/room     → InterviewRoomPage # AI interview session (WebSocket)
-/:token/complete → CompletePage      # Thank you, feedback
-```
-
-### 6.2 Current Status: 🟡 UI Scaffolded, No Real Integration
-
-- Pages exist with visual layouts but **no real API integration**
-- `InterviewRoomPage` references WebSocket but uses mock connection
-- No WebRTC audio/video capture implemented
-- No speech-to-text integration
-- This is the **highest-value work remaining**
+1. **浏览器安全边界导致“绝对防作弊”不可达**  
+   - Web 端无法真正“杜绝所有外挂插件”；只能做到行为检测、证据留痕、策略处置。
+2. **实时链路扩展性风险**  
+   - WebSocket/房间状态目前偏单体内存态，横向扩容需要引入 Redis pub/sub 或事件总线。
+3. **合规风险**  
+   - 屏幕录制、行为监测、自动终止需匹配用户同意、地区合规与告知文本。
+4. **可靠性风险**  
+   - 若无明确 SLO、告警、故障演练，生产后问题定位成本会快速上升。
 
 ---
 
-## 7. AI Services Layer (Pre-Integration)
+## 5. 后续建议新增功能（面向差异化与蓝海切口）
 
-### 7.1 AI Gateway (`src/services/ai/aiGateway.ts`) — ⚠️ LEGACY LOCATION
+> 招聘/ATS 本身是红海；要进入相对蓝海，需要把“可信面试基础设施 + 可审计能力 + 招聘决策智能”做成壁垒。
 
-A fully-implemented **multi-provider AI gateway** with:
+### 5.1 必做（上线前）
+1. **候选人合规同意中心**：面试前明确展示监控范围、数据用途、保存时长、撤回机制。
+2. **监控策略模板库**：按岗位类型（前端/后端/算法/非技术）提供预设策略。
+3. **告警联动动作**：高危事件触发自动标记、提醒、暂停建议流程。
 
-| Provider | Models | Implementation |
-|:---------|:-------|:---------------|
-| **Gemini** | `gemini-2.5-pro`, `gemini-2.5-flash` | ✅ `@google/genai` SDK |
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini` | ✅ REST API (`fetch`) |
-| **Claude** | `claude-sonnet-4`, `claude-opus-4` | ✅ REST API (`fetch`) |
-| **Local** | Any OpenAI-compatible (Ollama, vLLM) | ✅ Generic endpoint |
-| **Mock** | `mock-model` | ✅ Simulated responses |
-
-**Key Features**:
-- Singleton pattern (`AIGateway.getInstance()`)
-- Automatic **fallback** to MockProvider on primary failure
-- Per-call **logging** with latency, token usage, cost estimate
-- **Usage stats** aggregation (`getUsageStats()`)
-- Dynamic **provider switching** (`setProvider(model, config)`)
-
-**⚠️ Problem**: This file is in `src/services/`, which is the **legacy pre-monorepo location**. It needs to be migrated to `server/src/services/` and integrated with the Fastify routes.
-
-### 7.2 Rule Engine (`src/services/rules/ruleEngine.ts`) — ⚠️ LEGACY LOCATION
-
-A complete **resume screening rule engine** with:
-- **DSL support**: AND / OR / NOT group logic
-- **10 operators**: EQUALS, NOT_EQUALS, GTE, LTE, GT, LT, CONTAINS, NOT_CONTAINS, IN, BETWEEN, REGEX
-- **Nested access**: `experience.years` dot-path resolution
-- **Match scoring**: `calculateMatchScore()` returns 0-100
-- **Templates**: Senior Engineer, Product Manager, Data Scientist presets
-
-**⚠️ Same migration issue** — needs to move to `server/` and expose via REST API.
+### 5.2 蓝海增强（上线后 1-2 个版本）
+1. **可验证证据链（Evidence Hash Chain）**
+   - 对关键事件做哈希串联，导出后可验真，提升争议场景可信度。
+2. **AI 面试质量回放与二次复评（Second Opinion）**
+   - 允许第二模型复评并给出分歧解释，降低单模型偏差。
+3. **岗位能力图谱与题目自适应编排**
+   - 依据岗位能力维度自动调题，提高区分度与公平性。
+4. **面试官协同战情室（实时批注 + 评分同步）**
+   - 管理端多人协同观察同一场面试，提高团队决策效率。
 
 ---
 
-## 8. Known Issues & Technical Debt
+## 6. 现有代码优化与修改建议
 
-### 8.1 Critical Issues (Blocking Production)
+### 6.1 前端（Google 风格继续收口）
+1. 建立统一 Design Tokens（颜色/间距/层级/状态）并抽成共享样式层。
+2. 将 `InterviewRoomPage` 拆分为：
+   - `useSecureMode`
+   - `useScreenShareGuard`
+   - `useInterviewSocket`
+   - `useCodeSync`
+   - `SecureOverlay` / `InterviewWorkspace` 组件
+3. 将 `InterviewMonitorPage` 拆分为：
+   - 实时面板
+   - 策略面板
+   - 证据中心
+   - 时间轴回放
+4. 去除硬编码 `localhost`，统一使用环境变量与运行时配置注入。
 
-| # | Issue | Severity | Location | Details |
-|:--|:------|:---------|:---------|:--------|
-| 1 | **AI routes are mock** | 🔴 Critical | `server/src/routes/ai.ts` | `/ai/chat` and `/screening/evaluate` return hardcoded responses |
-| 2 | **WebSocket is mock** | 🔴 Critical | `server/src/routes/websocket.ts` | Interview streaming returns scripted responses |
-| 3 | **Notification routes use mock data** | 🟠 High | `server/src/routes/notifications.ts` | Imports from `../data` (in-memory MOCK_NOTIFICATIONS) |
-| 4 | **No file upload** | 🟠 High | — | MinIO is provisioned but no upload routes exist. Candidate `resumeUrl` is always null |
-| 5 | **Legacy code in `/src`** | 🟠 High | `src/services/`, `src/pages/` | AI Gateway and Rule Engine live outside the monorepo structure |
-| 6 | **`mockData.ts` still exists** | 🟡 Low | `apps/portal/src/data/mockData.ts` | File is no longer imported but should be deleted |
-| 7 | **`dailyMetrics` and `aiCost` are mocked** | 🟡 Medium | `server/src/routes/analytics.ts` | Need real historical aggregation queries |
+### 6.2 后端
+1. 新增 `env` 校验层（zod）：启动时强校验关键密钥，不允许生产默认值回退。
+2. 清理旧入口 `server/index.ts`，统一 `server/src/index.ts`。
+3. WebSocket 消息体 schema 化（shared types + runtime validation）。
+4. 引入幂等与限流策略到关键写接口（策略下发、证据导出、回滚）。
 
-### 8.2 Frontend Issues
-
-| # | Issue | Severity | Details |
-|:--|:------|:---------|:--------|
-| 1 | **ScreeningPage is static** | 🟠 High | Rule builder UI exists but buttons do nothing (no API backend) |
-| 2 | **InterviewMonitorPage is static** | 🟠 High | Hardcoded transcript/scores, no WebSocket connection |
-| 3 | **Layout uses hardcoded user** | 🟡 Medium | `Layout.tsx:42` has `const currentUser = { name: '张通', role: 'HR 经理' }` instead of reading from authStore |
-| 4 | **No logout action** | 🟡 Medium | Logout button in Layout dropdown doesn't call `authStore.logout()` |
-| 5 | **Root `/src` has duplicate pages** | 🟡 Low | `src/pages/` has 7 old page files that may confuse developers |
-| 6 | **No loading spinner for toast** | 🟡 Low | Mutations show spinner in button but no toast during loading |
-
-### 8.3 Backend Issues
-
-| # | Issue | Severity | Details |
-|:--|:------|:---------|:--------|
-| 1 | **No rate limiting** | 🟠 High | Auth endpoints have no throttle — vulnerable to brute force |
-| 2 | **No input sanitization** | 🟡 Medium | User inputs go directly to Prisma (Prisma sanitizes SQL but XSS is possible) |
-| 3 | **No CORS restriction for production** | 🟡 Medium | CORS allows `localhost:3000-3005` — needs env-based configuration |
-| 4 | **Redis not utilized** | 🟡 Low | Provisioned in Docker but not used for sessions, caching, or rate limits |
-| 5 | **Analytics groupBy type cast** | 🟡 Low | `analytics.ts:71` uses `as any` for Prisma groupBy `_count` access |
-| 6 | **No Prisma `onDelete: Cascade`** | 🟡 Low | Cascade deletions are manual in route handlers — should be in schema |
+### 6.3 数据与运维
+1. 增加 Prisma 迁移规范：版本命名、回滚策略、发布检查。
+2. 为高频查询补索引（按 interviewId、createdAt、action）。
+3. 增加审计日志归档任务，避免主库膨胀。
+4. 建立最小上线运维集：
+   - 健康检查
+   - error 监控
+   - 告警通道
+   - 备份与恢复演练
 
 ---
 
-## 9. Roadmap — From MVP to Production
+## 7. 距离正式上线还差多久？进度是多少？
 
-### Phase 5: AI Integration (HIGHEST PRIORITY) 🔴
+### 7.1 进度量化（以“正式上线”口径）
 
-**Goal**: Connect the AI Gateway to the backend routes, enabling real AI-powered features.
+- 产品功能完成度：**82%**
+- 前端体验完成度：**78%**
+- 后端能力完成度：**76%**
+- 安全与合规完成度：**50%**
+- 测试与运维完成度：**52%**
 
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 5.1 Migrate AI Gateway | 🔴 P0 | 2h | Move `src/services/ai/aiGateway.ts` → `server/src/services/aiGateway.ts` |
-| 5.2 API Key Management UI | 🔴 P0 | 4h | SettingsPage → AI tab: add/test/delete provider keys. Backend: encrypt with AES-256 and store in `ApiKeyStore` |
-| 5.3 Real `/ai/chat` Route | 🔴 P0 | 3h | Integrate AIGateway with `/ai/chat`. Load provider key from DB → decrypt → generate → return |
-| 5.4 AI Resume Evaluation | 🔴 P0 | 4h | `/screening/evaluate` → accept candidateId, load resume/skills, run through RuleEngine + LLM for scoring |
-| 5.5 AI Interview Questions | 🟠 P1 | 4h | Given JD + candidate profile → generate tailored interview questions |
-| 5.6 AI Interview Report | 🟠 P1 | 4h | Post-interview → generate comprehensive evaluation report → save as `reportUrl` |
+**综合进度：约 72%**
 
-### Phase 6: Real-Time Interview System 🔴
+### 7.2 工期预估（从 2026-02-14 起）
 
-**Goal**: Enable actual AI-driven interviews with audio/video.
+1. **Beta（受控试运行）**：3-4 周  
+   - 目标窗口：**2026-03-14 ~ 2026-03-28**
+2. **Production（正式上线）**：6-8 周  
+   - 目标窗口：**2026-04-04 ~ 2026-04-25**
 
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 6.1 WebRTC Audio Capture | 🔴 P0 | 6h | `InterviewRoomPage` → capture microphone → stream to server |
-| 6.2 Speech-to-Text (STT) | 🔴 P0 | 4h | Server-side STT (Whisper API or browser Web Speech API) → real transcript |
-| 6.3 Text-to-Speech (TTS) | 🟠 P1 | 3h | AI-generated questions → TTS → play audio to candidate |
-| 6.4 Real WebSocket Protocol | 🔴 P0 | 4h | Define message protocol: `AUDIO_CHUNK`, `TRANSCRIPT`, `AI_QUESTION`, `AI_SCORE_UPDATE` |
-| 6.5 interview App API Binding | 🔴 P0 | 4h | Connect `apps/interview` pages to real `/public/interview/:token` endpoints |
-| 6.6 Recording Storage | 🟠 P1 | 2h | Upload interview recordings to MinIO → store URL in Interview record |
-| 6.7 Live Monitor Page | 🟠 P1 | 4h | HR-side `InterviewMonitorPage` → real-time transcript + AI scores via WS |
-
-### Phase 7: Feature Completion 🟡
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 7.1 Screening Backend | 🟠 P1 | 4h | CRUD API for screening rules. Store rules in DB, expose `/screening/rules` endpoints |
-| 7.2 Connect ScreeningPage | 🟠 P1 | 3h | Wire rule builder to backend, enable save/load/execute templates |
-| 7.3 Notification System (Real) | 🟠 P1 | 3h | Replace mock data with Prisma-based notifications. Create on events (new candidate, interview complete) |
-| 7.4 File Upload (Resume) | 🟠 P1 | 3h | MinIO integration for candidate resume upload. Multer middleware → MinIO → store URL |
-| 7.5 Candidate Detail — Edit Mode | 🟡 P2 | 2h | Edit candidate profile fields inline (name, email, skills, tags) |
-| 7.6 Job Detail Page | 🟡 P2 | 3h | Dedicated job detail page with candidate list, pipeline view, edit form |
-| 7.7 Dashboard Real-Time Data | 🟡 P2 | 2h | Replace mocked `dailyMetrics` and `aiCost` with real aggregation queries |
-
-### Phase 8: Security & Production Hardening 🟡
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 8.1 Rate Limiting | 🟠 P1 | 1h | `fastify-rate-limit` on auth routes (5 attempts/min for login) |
-| 8.2 Input Sanitization | 🟠 P1 | 2h | XSS protection via `DOMPurify` or `sanitize-html` for user-generated content |
-| 8.3 Audit Logging | 🟡 P2 | 2h | Log critical actions to `AuditLog` model (stage changes, deletions, settings updates) |
-| 8.4 CORS Configuration | 🟡 P2 | 0.5h | Make CORS origins configurable via environment variables |
-| 8.5 Prisma Cascade Config | 🟡 P2 | 1h | Add `onDelete: Cascade` to schema relations to simplify route handlers |
-| 8.6 Redis Caching | 🟡 P2 | 2h | Cache analytics overview (TTL 5min), session blacklist for logout |
-| 8.7 Environment Variables | 🟡 P2 | 1h | Replace hardcoded `localhost:4000` in `api.ts` with `VITE_API_URL` env variable |
-
-### Phase 9: Code Quality & Cleanup 🟢
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 9.1 Delete `mockData.ts` | 🟢 P3 | 0.1h | `rm apps/portal/src/data/mockData.ts` |
-| 9.2 Fix Layout hardcoded user | 🟢 P3 | 0.5h | Replace `Layout.tsx:42` mock user with `useAuthStore().user` |
-| 9.3 Wire logout button | 🟢 P3 | 0.5h | Call `authStore.logout()` + `navigate('/login')` on click |
-| 9.4 Remove legacy `/src` | 🟢 P3 | 1h | After migrating AI Gateway + Rule Engine to `server/`, delete old `src/` folder |
-| 9.5 Fix `as any` casts | 🟢 P3 | 0.5h | ✅ Dashboard fixed. Analytics groupBy still needs fix. |
-| 9.6 Notification bell (real data) | 🟢 P3 | 1h | Layout notification dropdown → fetch from `/notifications` with unread count |
+> 前提：需求范围不大幅扩张；并行推进“安全硬化 + QA + 运维落地”。
 
 ---
 
-## 1. Architecture & Tech Stack
+## 8. 深度开发方案（建议执行）
 
-### 1.1 Monorepo Structure (Turborepo)
+### Phase 0（第 1 周）：上线阻断清零
 
-```
-hireflow-ai/
-├── apps/
-│   ├── portal/          # Enterprise Console (React 19, Vite, Port 3004)
-│   └── interview/       # Candidate Interface (React 19, Vite, Port 3005)
-├── server/              # Backend API (Fastify, Prisma, Port 4000)
-├── packages/
-│   └── shared/
-│       ├── i18n/        # Internationalization (zh-CN, en-US)
-│       ├── types/       # Shared TypeScript types
-│       ├── utils/       # Common utilities (cn, formatNumber, getGreeting)
-│       └── ui/          # Shared UI components (placeholder)
-├── src/                 # ⚠️ LEGACY — Pre-monorepo code (aiGateway, ruleEngine)
-└── services/            # ⚠️ LEGACY — Pre-monorepo services
-```
+**目标**：把“不能上线”的硬阻断全部清掉。  
+**任务**：
+1. 修复 `type-check` 唯一错误。
+2. 移除默认密钥回退，补齐启动时环境变量校验。
+3. 清理旧 `server/index.ts`，统一启动入口。
+4. 统一 API/WS 环境配置，清理 `localhost` 回退。
 
-### 1.2 Tech Stack Detail
+**验收标准**：
+- `npm run build` 通过
+- `npm run type-check` 全绿
+- 生产模式启动时缺失关键 ENV 直接 fail-fast
 
-| Layer | Technology | Notes |
-|:------|:-----------|:------|
-| **Runtime** | Node.js 24 | LTS |
-| **Frontend** | React 19 + Vite | Code-split with `lazy()` |
-| **Styling** | Tailwind CSS v4 + Custom M3 Design System | `index.css` (1040+ lines) |
-| **State** | Zustand (auth) + TanStack Query v5 (server) | Persist middleware for auth |
-| **Forms** | React Hook Form + Zod | Schema-validated mutations |
-| **Animation** | Framer Motion | Page transitions, card reveals |
-| **Backend** | Fastify | HTTP + WebSocket |
-| **ORM** | Prisma | PostgreSQL |
-| **Database** | PostgreSQL 16 (Docker) | Port 5433 |
-| **Cache** | Redis (Docker) | Port 6379, **not yet used** |
-| **Storage** | MinIO (Docker) | Port 9000/9001, **not yet used** |
-| **Build** | Turborepo | `npm run dev` starts all apps |
+### Phase 1（第 2-3 周）：质量与可运维能力
 
-### 1.3 Core Design Principles
+**目标**：具备可持续交付与可观测能力。  
+**任务**：
+1. E2E 脚本升级为一键（自动预检并可选自动拉起依赖）。
+2. 增加 API 合同测试与关键流程冒烟测试。
+3. 接入错误监控（Sentry 类）与结构化日志聚合。
+4. 建立部署前检查清单（migrate、seed、health、rollback）。
 
-| # | Principle | Status |
-|:--|:----------|:-------|
-| 1 | **Zero Dead Buttons** — Every action triggers a real API call + UI feedback | 🟡 95% (ScreeningPage, InterviewMonitor still static) |
-| 2 | **Zero Placeholders** — No "Coming Soon" screens | 🟡 ScreeningPage is static, InterviewMonitor is static |
-| 3 | **Absolute Security** — API keys encrypted AES-256 in DB, never exposed to frontend | ✅ Schema ready, encryption utils exist |
-| 4 | **Full Data Flow** — Auth → Fetch → Mutate → Invalidate → Toast | ✅ Implemented for all CRUD pages |
-| 5 | **Google M3 Aesthetics** — Liquid Glass sidebar, de-bordered cards, Inter font | ✅ CSS design system complete |
+**验收标准**：
+- 主链路 E2E 可在标准环境稳定跑通
+- 核心错误可在监控平台追踪
+- 发布有标准化 runbook
 
----
+### Phase 2（第 4-5 周）：体验与差异化增强
 
-## 2. Database (Prisma Schema)
+**目标**：提升产品竞争力与可用性。  
+**任务**：
+1. 前端页面模块化拆分，降低维护复杂度。
+2. 监控策略模板库（岗位预设 + 组织级策略继承）。
+3. 证据链导出增强（时间轴、摘要、可复核视图）。
+4. 合规同意与告知流程完善。
 
-### 2.1 Entity Relationship
+**验收标准**：
+- 大页面拆分完成，关键逻辑可单测
+- 监控策略可复用与批量治理
+- 合规流程在候选人端可见且有记录
 
-```
-Company
- ├── Users[]              # Multi-tenant user management
- ├── CompanySettings      # AI config, security, notifications, privacy
- ├── ApiKeyStore[]        # AES-256 encrypted AI provider keys
- ├── Integrations[]       # Third-party connections (Calendar, Slack, etc.)
- ├── AuditLog[]           # Security & compliance events
- ├── Jobs[]
- │    ├── Candidates[]
- │    │    └── Interviews[]
- │    │         ├── InterviewFeedback[]  # Candidate satisfaction ratings
- │    │         └── Evaluation[]         # AI or human scoring
- │    └── Interviews[]
- └── Candidates[]
-```
+### Phase 3（第 6-8 周）：上线冲刺
 
-### 2.2 Key Models & Fields
+**目标**：达到正式上线标准。  
+**任务**：
+1. 压测与容量评估（WS 房间并发、证据导出峰值）。
+2. 安全扫描与权限回归。
+3. 灰度发布 + 回滚演练。
+4. 上线后首月指标看板（激活率、完成率、告警率、故障 MTTR）。
 
-| Model | Key Fields | Notes |
-|:------|:-----------|:------|
-| **Company** | `name, logo, primaryColor, welcomeText` | Supports white-labeling |
-| **User** | `email, name, passwordHash, role, companyId` | Roles: `owner, admin, hr_manager, interviewer, viewer` |
-| **CompanySettings** | `defaultModelId, temperature, maxTokens, antiCheatEnabled, ...` | 20+ configurable fields |
-| **ApiKeyStore** | `provider, encryptedKey, baseUrl, status, cachedModels` | `@@unique([companyId, provider])` |
-| **Job** | `title, department, location, type, descriptionJd, requirements[], status, salaryRange(JSON), candidateCount, pipeline(JSON)` | Status: `draft, active, closed, paused` |
-| **Candidate** | `name, email, phone, stage, score, skills[], verificationStatus, tags[], source, resumeUrl` | Stage: `applied → screening → interview_1 → interview_2 → offer → hired / rejected` |
-| **Interview** | `token(unique), status, type, startTime, endTime, score, feedback, recordingUrl, transcriptUrl, reportUrl` | Token-based public access |
-| **Evaluation** | `evaluatorId, scores(JSON), comment, vote` | Supports both human and AI evaluators (`evaluatorId = 'AI'`) |
-
-### 2.3 Docker Compose Services
-
-```yaml
-PostgreSQL 16 Alpine  →  Port 5433:5432  (hireflow-postgres)
-Redis                →  Port 6379       (hireflow-redis)    # Not yet utilized
-MinIO                →  Port 9000/9001  (hireflow-minio)    # Not yet utilized
-```
+**验收标准**：
+- 压测达到目标阈值
+- 安全与权限问题闭环
+- 灰度/回滚流程已演练
+- 可观测指标上线并稳定
 
 ---
 
-## 3. Authentication System ✅ COMPLETE
+## 9. 市场判断（红海/蓝海）与实际利用率预估
 
-### 3.1 Flow Diagram
+### 9.1 市场属性
 
-```
-[Register/Login]
-     ↓
-POST /auth/login → { accessToken (15min), refreshToken (7d, HTTP-Only Cookie) }
-     ↓
-[Frontend stores accessToken in Zustand (localStorage persist)]
-     ↓
-[API requests → Axios interceptor adds Bearer token]
-     ↓
-[401 Error?]
-     ├── YES → Auto-refresh via POST /auth/refresh (Cookie) → Retry original request
-     │         Queue concurrent requests during refresh → Process queue after
-     └── NO  → Continue normally
-     ↓
-[Refresh fails?] → Logout + redirect to /login
-```
+- **主赛道**（ATS + 面试管理）是典型红海，竞品多、同质化高。
+- **可切入蓝海的细分点**：
+  1. 可审计、可验证的远程面试监控与证据体系
+  2. 面向企业风控/合规的“可信面试基础设施”
+  3. 多模型复评与偏差解释能力
 
-### 3.2 Auth Endpoints
+### 9.2 利用率与落地概率（基于当前能力）
 
-| Endpoint | Method | Description |
-|:---------|:-------|:------------|
-| `/api/auth/register` | POST | Creates Company + User + CompanySettings → returns tokens |
-| `/api/auth/login` | POST | Validates email/password → returns tokens |
-| `/api/auth/refresh` | POST | Reads HTTP-Only cookie → issues new accessToken |
-| `/api/auth/logout` | POST | Clears refreshToken cookie |
-| `/api/auth/me` | GET | Returns current user from JWT |
-
-### 3.3 Frontend Auth Components
-
-| Component | Purpose |
-|:----------|:--------|
-| `authStore.ts` | Zustand persist store: `login(token, user)`, `logout()`, `updateUser()` |
-| `api.ts` | Axios instance with request interceptor (attach token) + response interceptor (auto-refresh flow) |
-| `RequireAuth.tsx` | Route guard — redirects to `/login` if not authenticated |
+- 若仅做通用 ATS 功能：利用率提升空间有限，易陷价格竞争。
+- 若强化“可信监考 + 可审计证据 + 复评能力”：
+  - 在中大型企业、外包交付、技术面试场景中，实际采用率更高。
+  - 预计可形成更强付费意愿与更低替代性。
 
 ---
 
-## 4. Backend API Reference
+## 10. 下一步（建议立即执行）
 
-### 4.1 Complete Route Inventory
+1. 先完成 **Phase 0**（1 周内完成上线阻断清零）。
+2. 同步更新 `README.md` 与本文件，确保文档与代码一致。
+3. 以“Beta 上线”为目标建立每周可验收里程碑，避免功能继续堆积造成延期。
 
-#### Core CRUD Routes
-
-| Route | Methods | File | Auth | Description |
-|:------|:--------|:-----|:-----|:------------|
-| `/api/candidates` | GET, POST | `candidates.ts` | ✅ | List (search, filter, paginate) / Create candidate |
-| `/api/candidates/:id` | GET, PUT, DELETE | `candidates.ts` | ✅ | Detail / Update / Delete (cascade: feedback→eval→interview) |
-| `/api/candidates/:id/stage` | PUT | `candidates.ts` | ✅ | Update candidate stage only |
-| `/api/jobs` | GET, POST | `jobs.ts` | ✅ | List (search, filter, paginate) / Create job |
-| `/api/jobs/:id` | GET, PUT, DELETE | `jobs.ts` | ✅ | Detail (with pipeline stats) / Update / Delete (cascade) |
-| `/api/interviews` | GET, POST | `interviews.ts` | ✅ | List (with candidate & job names) / Create (auto-generate token) |
-| `/api/interviews/:id` | GET, PUT | `interviews.ts` | ✅ | Detail / Update |
-
-#### Public Routes (Candidate-Facing)
-
-| Route | Method | Auth | Description |
-|:------|:-------|:-----|:------------|
-| `/api/public/interview/:token` | GET | ❌ | Candidate fetches interview details by token |
-| `/api/public/interview/:token/start` | POST | ❌ | Candidate starts interview session |
-| `/api/public/interview/:token/end` | POST | ❌ | Candidate ends interview session |
-
-#### Settings & Team Routes
-
-| Route | Methods | File | Auth | RBAC | Description |
-|:------|:--------|:-----|:-----|:-----|:------------|
-| `/api/team` | GET | `team.ts` | ✅ | Any | List company members |
-| `/api/team/:id` | PUT | `team.ts` | ✅ | Admin/Owner | Update member role |
-| `/api/team/:id` | DELETE | `team.ts` | ✅ | Admin/Owner | Remove member |
-| `/api/settings` | GET | `settings.ts` | ✅ | Any | Get company settings (or create defaults) |
-| `/api/settings` | PUT | `settings.ts` | ✅ | Admin/Owner | Update settings (Zod validated) |
-
-#### Analytics & System Routes
-
-| Route | Method | File | Auth | Description |
-|:------|:-------|:-----|:-----|:------------|
-| `/api/analytics/overview` | GET | `analytics.ts` | ✅ | Dashboard KPIs, funnel, schedule, trends, AI cost |
-| `/api/notifications` | GET | `notifications.ts` | ❌ | ⚠️ **MOCK DATA** — returns hardcoded notifications |
-| `/api/notifications/:id/read` | POST | `notifications.ts` | ❌ | ⚠️ **MOCK** — marks notification as read in memory |
-| `/api/ai/chat` | POST | `ai.ts` | ❌ | ⚠️ **MOCK** — returns simulated AI response |
-| `/api/screening/evaluate` | POST | `ai.ts` | ❌ | ⚠️ **MOCK** — returns simulated screening result |
-| `/api/ws/interview/stream` | WebSocket | `websocket.ts` | ❌ | ⚠️ **MOCK** — simulated interview Q&A via WS |
-| `/api/health` | GET | `index.ts` | ❌ | Server health check |
-
-### 4.2 API Design Patterns
-
-- **Multi-tenancy**: All queries include `WHERE companyId = user.companyId`
-- **Validation**: Zod schemas on POST/PUT bodies
-- **Pagination**: `?page=1&pageSize=20` (default 20)
-- **Cascade Deletions**: Delete order: InterviewFeedback → Evaluation → Interview → Candidate → Job
-- **Error Handling**: `try/catch` → `reply.status(err.statusCode || 500).send({ error: err.message })`
-
----
-
-## 5. Frontend — Enterprise Console (`apps/portal`)
-
-### 5.1 Routing
-
-```
-Public Routes:
-  /login           → LoginPage       (M3 styled, i18n, dark mode ready)
-  /register        → RegisterPage    (M3 styled, i18n, dark mode ready)
-
-Protected Routes (RequireAuth → Layout with sidebar):
-  /                → Redirect to /dashboard
-  /dashboard       → Dashboard       (KPIs, Funnel, Schedule, Trends, AI Cost)
-  /candidates      → CandidatesPage  (Search, Filter, Add Modal)
-  /candidates/:id  → CandidateDetailPage (Profile, Timeline, Stage, Delete)
-  /jobs            → JobsPage        (Search, Create, Status Update, Delete)
-  /interviews      → InterviewsPage  (Tabs, Create Modal, Copy Link)
-  /screening       → ScreeningPage   ⚠️ UI-Only, no backend
-  /analytics       → AnalyticsPage   (KPIs, Charts from real API)
-  /team            → TeamPage        (List, Role Edit, Remove Member)
-  /settings        → SettingsPage    (AI Config, Security, Notifications, Privacy)
-
-Protected (Standalone — no sidebar):
-  /interviews/:id/monitor → InterviewMonitorPage  ⚠️ Static placeholder
-```
-
-### 5.2 Page Implementation Status
-
-| Page | API Binding | Mutations | i18n | Dark Mode | Status |
-|:-----|:------------|:----------|:-----|:----------|:-------|
-| **LoginPage** | `POST /auth/login` | ✅ Login | ✅ | ✅ | ✅ Complete |
-| **RegisterPage** | `POST /auth/register` | ✅ Register | ✅ | ✅ | ✅ Complete |
-| **Dashboard** | `GET /analytics/overview` | — | ✅ | ✅ | ✅ Complete |
-| **CandidatesPage** | `GET /candidates` | ✅ Create (Modal) | ✅ | ✅ | ✅ Complete |
-| **CandidateDetailPage** | `GET /candidates/:id` | ✅ Stage, Delete, Reject | ✅ | ✅ | ✅ Complete |
-| **JobsPage** | `GET /jobs` | ✅ Create, Status, Delete | ✅ | ✅ | ✅ Complete |
-| **InterviewsPage** | `GET /interviews` | ✅ Create (Modal), Copy Link | ✅ | ✅ | ✅ Complete |
-| **AnalyticsPage** | `GET /analytics/overview` | — | ✅ | ✅ | ✅ Complete |
-| **TeamPage** | `GET /team` | ✅ Role Update, Remove | ✅ | ✅ | ✅ Complete |
-| **SettingsPage** | `GET/PUT /settings` | ✅ Save All | ✅ | ✅ | ✅ Complete |
-| **ScreeningPage** | ❌ None | ❌ | ✅ | ✅ | 🟡 UI Only |
-| **InterviewMonitorPage** | ❌ None | ❌ | ✅ | — | 🔴 Placeholder |
-
-### 5.3 Component Inventory
-
-```
-apps/portal/src/
-├── App.tsx                                    # Router, QueryClient, Toaster
-├── main.tsx                                   # React 19 root render
-├── index.css                                  # M3 Design System (1040+ lines)
-├── components/
-│   ├── Layout.tsx                             # Sidebar + Topbar + content area
-│   ├── auth/RequireAuth.tsx                   # Auth route guard
-│   ├── candidates/AddCandidateModal.tsx       # RHF + Zod form
-│   ├── interviews/CreateInterviewModal.tsx    # RHF + Zod form
-│   ├── jobs/AddJobModal.tsx                   # RHF + Zod form
-│   └── ui/Toast.tsx                           # Sonner with M3 styling
-├── hooks/
-│   └── useDebounce.ts                         # 300ms debounce for search inputs
-├── stores/
-│   └── authStore.ts                           # Zustand persist store
-├── lib/
-│   └── api.ts                                 # Axios + token refresh interceptor
-├── contexts/
-│   └── ThemeContext.tsx                        # Light/Dark/System theme
-├── data/
-│   └── mockData.ts                            # ⚠️ LEGACY — no longer imported
-└── pages/
-    └── (12 page files)
-```
-
-### 5.4 Design System — CSS Token Architecture
-
-The `index.css` file implements a complete Google Material 3 design system:
-
-| Category | Key Tokens | Examples |
-|:---------|:-----------|:--------|
-| **Colors** (Light) | `--color-primary: #1A73E8`, `--color-surface: #FFFFFF`, `--color-error: #D93025` | 16 color tokens |
-| **Colors** (Dark) | `--color-primary: #8AB4F8`, `--color-surface: #1F1F1F` | All 16 overridden in `.dark` |
-| **Typography** | `text-display-large`, `text-headline-medium`, `text-body-medium`, `text-label-small` | 10 type scales |
-| **Buttons** | `btn-filled`, `btn-outlined`, `btn-tonal`, `btn-text`, `btn-danger`, `btn-icon` | + `btn-lg` size variant |
-| **Cards** | `card`, `card-hover`, `card-elevated` | De-bordered, shadow-based |
-| **Inputs** | `input`, `input-compact` | Focus: 2px primary border |
-| **Chips** | `chip-primary`, `chip-success`, `chip-error`, `chip-warning`, `chip-neutral` | 5 semantic variants |
-| **Sidebar** | `sidebar`, `nav-item`, `nav-item.active` | Liquid Glass blur effect |
-| **Topbar** | `topbar` | Glass blur, sticky |
-| **Auth Pages** | `auth-page`, `auth-card`, `auth-input`, `auth-submit`, `auth-logo` | Glassmorphism card + gradient BG |
-| **Animations** | `animate-fade-in-up`, `animate-stagger`, `pulse-live` | M3 easing curves |
-
----
-
-## 6. Frontend — Candidate Interface (`apps/interview`)
-
-### 6.1 Flow
-
-```
-/:token          → LandingPage       # Welcome, verify interview token
-/:token/device   → DeviceCheckPage   # Camera/mic permissions check
-/:token/waiting  → WaitingRoomPage   # Countdown/preparation
-/:token/room     → InterviewRoomPage # AI interview session (WebSocket)
-/:token/complete → CompletePage      # Thank you, feedback
-```
-
-### 6.2 Current Status: 🟡 UI Scaffolded, No Real Integration
-
-- Pages exist with visual layouts but **no real API integration**
-- `InterviewRoomPage` references WebSocket but uses mock connection
-- No WebRTC audio/video capture implemented
-- No speech-to-text integration
-- This is the **highest-value work remaining**
-
----
-
-## 7. AI Services Layer (Pre-Integration)
-
-### 7.1 AI Gateway (`src/services/ai/aiGateway.ts`) — ⚠️ LEGACY LOCATION
-
-A fully-implemented **multi-provider AI gateway** with:
-
-| Provider | Models | Implementation |
-|:---------|:-------|:---------------|
-| **Gemini** | `gemini-2.5-pro`, `gemini-2.5-flash` | ✅ `@google/genai` SDK |
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini` | ✅ REST API (`fetch`) |
-| **Claude** | `claude-sonnet-4`, `claude-opus-4` | ✅ REST API (`fetch`) |
-| **Local** | Any OpenAI-compatible (Ollama, vLLM) | ✅ Generic endpoint |
-| **Mock** | `mock-model` | ✅ Simulated responses |
-
-**Key Features**:
-- Singleton pattern (`AIGateway.getInstance()`)
-- Automatic **fallback** to MockProvider on primary failure
-- Per-call **logging** with latency, token usage, cost estimate
-- **Usage stats** aggregation (`getUsageStats()`)
-- Dynamic **provider switching** (`setProvider(model, config)`)
-
-**⚠️ Problem**: This file is in `src/services/`, which is the **legacy pre-monorepo location**. It needs to be migrated to `server/src/services/` and integrated with the Fastify routes.
-
-### 7.2 Rule Engine (`src/services/rules/ruleEngine.ts`) — ⚠️ LEGACY LOCATION
-
-A complete **resume screening rule engine** with:
-- **DSL support**: AND / OR / NOT group logic
-- **10 operators**: EQUALS, NOT_EQUALS, GTE, LTE, GT, LT, CONTAINS, NOT_CONTAINS, IN, BETWEEN, REGEX
-- **Nested access**: `experience.years` dot-path resolution
-- **Match scoring**: `calculateMatchScore()` returns 0-100
-- **Templates**: Senior Engineer, Product Manager, Data Scientist presets
-
-**⚠️ Same migration issue** — needs to move to `server/` and expose via REST API.
-
----
-
-## 8. Known Issues & Technical Debt
-
-### 8.1 Critical Issues (Blocking Production)
-
-| # | Issue | Severity | Location | Details |
-|:--|:------|:---------|:---------|:--------|
-| 1 | **AI routes are mock** | 🔴 Critical | `server/src/routes/ai.ts` | `/ai/chat` and `/screening/evaluate` return hardcoded responses |
-| 2 | **WebSocket is mock** | 🔴 Critical | `server/src/routes/websocket.ts` | Interview streaming returns scripted responses |
-| 3 | **Notification routes use mock data** | 🟠 High | `server/src/routes/notifications.ts` | Imports from `../data` (in-memory MOCK_NOTIFICATIONS) |
-| 4 | **No file upload** | 🟠 High | — | MinIO is provisioned but no upload routes exist. Candidate `resumeUrl` is always null |
-| 5 | **Legacy code in `/src`** | 🟠 High | `src/services/`, `src/pages/` | AI Gateway and Rule Engine live outside the monorepo structure |
-| 6 | **`mockData.ts` still exists** | 🟡 Low | `apps/portal/src/data/mockData.ts` | File is no longer imported but should be deleted |
-| 7 | **`dailyMetrics` and `aiCost` are mocked** | 🟡 Medium | `server/src/routes/analytics.ts` | Need real historical aggregation queries |
-
-### 8.2 Frontend Issues
-
-| # | Issue | Severity | Details |
-|:--|:------|:---------|:--------|
-| 1 | **ScreeningPage is static** | 🟠 High | Rule builder UI exists but buttons do nothing (no API backend) |
-| 2 | **InterviewMonitorPage is static** | 🟠 High | Hardcoded transcript/scores, no WebSocket connection |
-| 3 | **Layout uses hardcoded user** | 🟡 Medium | `Layout.tsx:42` has `const currentUser = { name: '张通', role: 'HR 经理' }` instead of reading from authStore |
-| 4 | **No logout action** | 🟡 Medium | Logout button in Layout dropdown doesn't call `authStore.logout()` |
-| 5 | **Root `/src` has duplicate pages** | 🟡 Low | `src/pages/` has 7 old page files that may confuse developers |
-| 6 | **Framer Motion Variants type** | 🟡 Low | `Dashboard.tsx:26` uses `as any` for cardVariants typing |
-| 7 | **No loading spinner for toast** | 🟡 Low | Mutations show spinner in button but no toast during loading |
-
-### 8.3 Backend Issues
-
-| # | Issue | Severity | Details |
-|:--|:------|:---------|:--------|
-| 1 | **No rate limiting** | 🟠 High | Auth endpoints have no throttle — vulnerable to brute force |
-| 2 | **No input sanitization** | 🟡 Medium | User inputs go directly to Prisma (Prisma sanitizes SQL but XSS is possible) |
-| 3 | **No CORS restriction for production** | 🟡 Medium | CORS allows `localhost:3000-3005` — needs env-based configuration |
-| 4 | **Redis not utilized** | 🟡 Low | Provisioned in Docker but not used for sessions, caching, or rate limits |
-| 5 | **Analytics groupBy type cast** | 🟡 Low | `analytics.ts:71` uses `as any` for Prisma groupBy `_count` access |
-| 6 | **No Prisma `onDelete: Cascade`** | 🟡 Low | Cascade deletions are manual in route handlers — should be in schema |
-
----
-
-## 9. Roadmap — From MVP to Production
-
-### Phase 5: AI Integration (HIGHEST PRIORITY) 🔴
-
-**Goal**: Connect the AI Gateway to the backend routes, enabling real AI-powered features.
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 5.1 Migrate AI Gateway | 🔴 P0 | 2h | Move `src/services/ai/aiGateway.ts` → `server/src/services/aiGateway.ts` |
-| 5.2 API Key Management UI | 🔴 P0 | 4h | SettingsPage → AI tab: add/test/delete provider keys. Backend: encrypt with AES-256 and store in `ApiKeyStore` |
-| 5.3 Real `/ai/chat` Route | 🔴 P0 | 3h | Integrate AIGateway with `/ai/chat`. Load provider key from DB → decrypt → generate → return |
-| 5.4 AI Resume Evaluation | 🔴 P0 | 4h | `/screening/evaluate` → accept candidateId, load resume/skills, run through RuleEngine + LLM for scoring |
-| 5.5 AI Interview Questions | 🟠 P1 | 4h | Given JD + candidate profile → generate tailored interview questions |
-| 5.6 AI Interview Report | 🟠 P1 | 4h | Post-interview → generate comprehensive evaluation report → save as `reportUrl` |
-
-### Phase 6: Real-Time Interview System 🔴
-
-**Goal**: Enable actual AI-driven interviews with audio/video.
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 6.1 WebRTC Audio Capture | 🔴 P0 | 6h | `InterviewRoomPage` → capture microphone → stream to server |
-| 6.2 Speech-to-Text (STT) | 🔴 P0 | 4h | Server-side STT (Whisper API or browser Web Speech API) → real transcript |
-| 6.3 Text-to-Speech (TTS) | 🟠 P1 | 3h | AI-generated questions → TTS → play audio to candidate |
-| 6.4 Real WebSocket Protocol | 🔴 P0 | 4h | Define message protocol: `AUDIO_CHUNK`, `TRANSCRIPT`, `AI_QUESTION`, `AI_SCORE_UPDATE` |
-| 6.5 interview App API Binding | 🔴 P0 | 4h | Connect `apps/interview` pages to real `/public/interview/:token` endpoints |
-| 6.6 Recording Storage | 🟠 P1 | 2h | Upload interview recordings to MinIO → store URL in Interview record |
-| 6.7 Live Monitor Page | 🟠 P1 | 4h | HR-side `InterviewMonitorPage` → real-time transcript + AI scores via WS |
-
-### Phase 7: Feature Completion 🟡
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 7.1 Screening Backend | 🟠 P1 | 4h | CRUD API for screening rules. Store rules in DB, expose `/screening/rules` endpoints |
-| 7.2 Connect ScreeningPage | 🟠 P1 | 3h | Wire rule builder to backend, enable save/load/execute templates |
-| 7.3 Notification System (Real) | 🟠 P1 | 3h | Replace mock data with Prisma-based notifications. Create on events (new candidate, interview complete) |
-| 7.4 File Upload (Resume) | 🟠 P1 | 3h | MinIO integration for candidate resume upload. Multer middleware → MinIO → store URL |
-| 7.5 Candidate Detail — Edit Mode | 🟡 P2 | 2h | Edit candidate profile fields inline (name, email, skills, tags) |
-| 7.6 Job Detail Page | 🟡 P2 | 3h | Dedicated job detail page with candidate list, pipeline view, edit form |
-| 7.7 Dashboard Real-Time Data | 🟡 P2 | 2h | Replace mocked `dailyMetrics` and `aiCost` with real aggregation queries |
-
-### Phase 8: Security & Production Hardening 🟡
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 8.1 Rate Limiting | 🟠 P1 | 1h | `fastify-rate-limit` on auth routes (5 attempts/min for login) |
-| 8.2 Input Sanitization | 🟠 P1 | 2h | XSS protection via `DOMPurify` or `sanitize-html` for user-generated content |
-| 8.3 Audit Logging | 🟡 P2 | 2h | Log critical actions to `AuditLog` model (stage changes, deletions, settings updates) |
-| 8.4 CORS Configuration | 🟡 P2 | 0.5h | Make CORS origins configurable via environment variables |
-| 8.5 Prisma Cascade Config | 🟡 P2 | 1h | Add `onDelete: Cascade` to schema relations to simplify route handlers |
-| 8.6 Redis Caching | 🟡 P2 | 2h | Cache analytics overview (TTL 5min), session blacklist for logout |
-| 8.7 Environment Variables | 🟡 P2 | 1h | Replace hardcoded `localhost:4000` in `api.ts` with `VITE_API_URL` env variable |
-
-### Phase 9: Code Quality & Cleanup 🟢
-
-| Task | Priority | Effort | Description |
-|:-----|:---------|:-------|:------------|
-| 9.1 Delete `mockData.ts` | 🟢 P3 | 0.1h | `rm apps/portal/src/data/mockData.ts` |
-| 9.2 Fix Layout hardcoded user | 🟢 P3 | 0.5h | Replace `Layout.tsx:42` mock user with `useAuthStore().user` |
-| 9.3 Wire logout button | 🟢 P3 | 0.5h | Call `authStore.logout()` + `navigate('/login')` on click |
-| 9.4 Remove legacy `/src` | 🟢 P3 | 1h | After migrating AI Gateway + Rule Engine to `server/`, delete old `src/` folder |
-| 9.5 Fix `as any` casts | 🟢 P3 | 1h | Dashboard cardVariants, analytics groupBy — add proper types |
-| 9.6 Notification bell (real data) | 🟢 P3 | 1h | Layout notification dropdown → fetch from `/notifications` with unread count |
-
----
-
-## 10. New Feature Ideas & Product Vision
-
-### 10.1 Short-Term Wins (1-2 Sprints)
-
-| Feature | Value | Effort | Description |
-|:--------|:------|:-------|:------------|
-| **AI Interview Summary Email** | 🔥 High | 3h | After interview → LLM generates summary → email to HR with pass/fail recommendation |
-| **Candidate Kanban Board** | 🔥 High | 4h | Drag-and-drop pipeline view in CandidatesPage (already have stage data) |
-| **Batch Actions** | 🟠 Medium | 2h | Multi-select candidates → batch move to next stage / reject / delete |
-| **Interview Calendar View** | 🟠 Medium | 3h | Replace interview list with calendar grid (weekly/monthly view) |
-| **Dark Mode Polish** | 🟡 Low | 2h | Audit all pages for dark mode consistency (some inline colors may not adapt) |
-
-### 10.2 Medium-Term Features (3-6 Sprints)
-
-| Feature | Value | Description |
-|:--------|:------|:------------|
-| **AI Interview Playback** | 🔥 Critical | HR can replay interview recordings with synced transcript + AI annotations |
-| **Multi-Language Interview** | 🔥 High | Support English, Chinese, Japanese interviews. AI adapts language based on JD |
-| **Collaborative Evaluation** | 🟠 Medium | Multiple team members can submit independent evaluations → weighted scoring |
-| **Custom Pipeline Stages** | 🟠 Medium | Companies define their own stage names (e.g., "Culture Fit", "Case Study") |
-| **White-Label Branding** | 🟠 Medium | Company logo, colors, welcome text on candidate-facing interview pages |
-| **Slack/Teams Integration** | 🟡 Low | Notify HR channels on new candidates, interview completions, etc. |
-
-### 10.3 Long-Term Vision
-
-| Feature | Description |
-|:--------|:------------|
-| **AI-Powered JD Generator** | Input: role title + requirements → Output: full JD with ideal candidate profile |
-| **Candidate Matching Engine** | Cross-reference candidate skills against all open positions → auto-suggest matches |
-| **Interview Analytics Dashboard** | Aggregate patterns: average interview length, pass rate by department, AI accuracy |
-| **Mobile App** | React Native app for HR managers — quick actions, notifications, on-the-go approvals |
-| **Compliance & GDPR Module** | Auto-delete recordings after retention period, data export for candidates |
-
----
-
-## 11. Environment & Running
-
-### 11.1 Prerequisites
-
-```bash
-# Start infrastructure
-docker compose up -d
-
-# Install dependencies
-npm install
-
-# Initialize database
-cd server && npx prisma migrate dev --name init && npx prisma db seed
-```
-
-### 11.2 Development
-
-```bash
-# Start all services (Turborepo)
-npm run dev
-
-# Or individually:
-npm run dev:portal     # → http://localhost:3004
-npm run dev:interview  # → http://localhost:3005
-npm run dev:server     # → http://localhost:4000
-```
-
-### 11.3 Environment Variables (`server/.env`)
-
-```env
-DATABASE_URL="postgresql://hireflow:hireflow_password@127.0.0.1:5433/hireflow_db"
-REDIS_URL="redis://127.0.0.1:6379"
-MINIO_ENDPOINT="127.0.0.1"
-MINIO_PORT="9000"
-MINIO_ACCESS_KEY="hireflow_minio"
-MINIO_SECRET_KEY="hireflow_minio_password"
-MINIO_BUCKET="hireflow-assets"
-JWT_SECRET="dev-jwt-secret-do-not-use-in-prod"
-ENCRYPTION_KEY="dev-32-byte-key-for-aes-256-gcm-00"  # Must be 32 chars
-PORT=4000
-HOST=0.0.0.0
-```
-
----
-
-## 12. File Inventory
-
-### Backend (`server/`)
-
-```
-server/
-├── .env
-├── prisma/
-│   ├── schema.prisma             # 229 lines — 12 models
-│   ├── seed.ts                   # Database seeding script
-│   └── migrations/
-├── src/
-│   ├── index.ts                  # Fastify entry — registers 10 route modules
-│   ├── routes/
-│   │   ├── auth.ts               # 5 endpoints (register/login/refresh/logout/me)
-│   │   ├── candidates.ts         # 6 endpoints (CRUD + stage + cascade delete)
-│   │   ├── jobs.ts               # 5 endpoints (CRUD + cascade delete)
-│   │   ├── interviews.ts         # 6 endpoints (CRUD + 3 public)
-│   │   ├── analytics.ts          # 1 endpoint (overview with partial mocks)
-│   │   ├── team.ts               # 3 endpoints (list/update/delete with RBAC)
-│   │   ├── settings.ts           # 2 endpoints (get/upsert with Zod validation)
-│   │   ├── ai.ts                 # ⚠️ 2 mock endpoints
-│   │   ├── notifications.ts      # ⚠️ 2 mock endpoints
-│   │   └── websocket.ts          # ⚠️ 1 mock WebSocket endpoint
-│   └── utils/
-│       ├── auth.ts               # authenticate() middleware
-│       ├── jwt.ts                # sign/verify tokens, TokenPayload type
-│       ├── passwords.ts          # bcrypt hash/compare
-│       ├── prisma.ts             # Singleton PrismaClient
-│       └── response.ts           # success()/error() helpers
-```
-
-### Frontend — Portal (`apps/portal/src/`)
-
-```
-apps/portal/src/
-├── App.tsx                       # Router + QueryClient + Toaster
-├── main.tsx                      # React 19 root + ThemeProvider + I18nProvider
-├── index.css                     # M3 Design System (1040+ lines)
-├── components/
-│   ├── Layout.tsx                # Sidebar + Topbar (Liquid Glass)
-│   ├── auth/RequireAuth.tsx
-│   ├── candidates/AddCandidateModal.tsx
-│   ├── interviews/CreateInterviewModal.tsx
-│   ├── jobs/AddJobModal.tsx
-│   └── ui/Toast.tsx
-├── hooks/useDebounce.ts
-├── stores/authStore.ts
-├── lib/api.ts                    # Axios + auto-refresh interceptor
-├── contexts/ThemeContext.tsx
-├── data/mockData.ts              # ⚠️ LEGACY — should delete
-└── pages/                        # 12 page files
-```
-
-### Frontend — Interview (`apps/interview/src/`)
-
-```
-apps/interview/src/
-├── App.tsx                       # Router: /:token flow
-├── index.css
-├── main.tsx
-├── components/
-│   └── AudioVisualizer.tsx       # Canvas-based audio waveform
-└── pages/
-    ├── LandingPage.tsx           # Welcome + verify token
-    ├── DeviceCheckPage.tsx       # Camera/mic permissions
-    ├── WaitingRoomPage.tsx       # Countdown
-    ├── InterviewRoomPage.tsx     # AI interview (mock WS)
-    └── CompletePage.tsx          # Thank you
-```
-
-### Legacy Code (⚠️ Needs Migration)
-
-```
-src/                              # Pre-monorepo code
-├── services/
-│   ├── ai/aiGateway.ts          # → Move to server/src/services/
-│   └── rules/ruleEngine.ts      # → Move to server/src/services/
-├── pages/                        # 7 old page files (duplicates of apps/portal)
-└── types/                        # Old type definitions
-```
-
----
-
-## 13. Quick Reference — Important Constants
-
-| Constant | Value | Location |
-|:---------|:------|:---------|
-| Primary Color | `#1A73E8` | `index.css :root` |
-| Primary Color (Dark) | `#8AB4F8` | `index.css .dark` |
-| Font | `Inter` | Google Fonts import |
-| Sidebar Width | `256px` / `72px` collapsed | `--sidebar-width`, `--sidebar-collapsed` |
-| Topbar Height | `64px` | `--topbar-height` |
-| Access Token TTL | `15 minutes` | `jwt.ts` |
-| Refresh Token TTL | `7 days` | `jwt.ts` |
-| API Base URL | `http://localhost:4000/api` | `api.ts` |
-| Portal Port | `3004` | Vite config |
-| Interview Port | `3005` | Vite config |
-| Server Port | `4000` | `.env` |
-| PostgreSQL Port | `5433` (host) → `5432` (container) | `docker-compose.yml` |
-
----
-
-**Next Immediate Action**: **Phase 5** — Migrate the AI Gateway from legacy `src/` to `server/src/services/`, implement API Key management in the Settings UI, and wire up the real `/ai/chat` endpoint. This unlocks the core product value.

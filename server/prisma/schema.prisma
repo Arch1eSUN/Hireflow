@@ -29,6 +29,9 @@ model Company {
   integrations Integration[]
   auditLogs    AuditLog[]
   screeningRules ScreeningRule[]
+
+  developerApiKeys DeveloperApiKey[]
+  webhookEndpoints WebhookEndpoint[]
 }
 
 model User {
@@ -203,6 +206,11 @@ model Interview {
   transcriptUrl String? // MinIO URL
   reportUrl     String? // MinIO URL
   
+  gdprConsentGiven Boolean @default(false)
+  gdprConsentAt    DateTime?
+
+  secondOpinion    Json?    // Stores the AI second opinion evaluation
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
@@ -213,6 +221,7 @@ model Interview {
   @@index([jobId])
   @@index([candidateId])
   @@index([status])
+  @@index([status, startTime])
 }
 
 model InterviewMessage {
@@ -269,6 +278,7 @@ model AuditLog {
   @@index([companyId])
   @@index([userId])
   @@index([targetType, targetId])
+  @@index([companyId, createdAt])
 }
 
 model Notification {
@@ -285,3 +295,48 @@ model Notification {
 
   @@index([userId, read])
 }
+
+// --- Integrations ---
+
+model DeveloperApiKey {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String
+  keyHash      String   @unique
+  prefix       String
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+  
+  @@index([companyId])
+}
+
+model WebhookEndpoint {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  url         String
+  secret      String
+  isActive    Boolean  @default(true)
+  events      String[] // e.g. ["interview.completed"]
+  createdAt   DateTime @default(now())
+
+  deliveries  WebhookDelivery[]
+
+  @@index([companyId])
+}
+
+model WebhookDelivery {
+  id               String          @id @default(uuid())
+  endpointId       String
+  endpoint         WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event            String
+  payload          Json
+  responseStatus   Int?
+  responseBody     String?
+  createdAt        DateTime        @default(now())
+
+  @@index([endpointId])
+  @@index([createdAt])
+}
+

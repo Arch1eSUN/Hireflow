@@ -1,16 +1,14 @@
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
-import { useEffect } from 'react';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuthStore } from '@/stores/authStore';
 
 export const RequireAuth = ({ children }: { children: React.ReactNode }) => {
     const { isAuthenticated, user } = useAuthStore();
-    const navigate = useNavigate();
 
-    useEffect(() => {
-        if (!isAuthenticated || !user) {
-            navigate('/login', { replace: true });
-        }
-    }, [isAuthenticated, user, navigate]);
+    if (!isAuthenticated || !user) {
+        return <Navigate to="/login" replace />;
+    }
 
-    return isAuthenticated ? children : null;
+    return <>{children}</>;
 };
+

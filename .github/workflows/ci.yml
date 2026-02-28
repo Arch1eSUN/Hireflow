@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, Type-check & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Prisma Generate
+        run: npm --workspace @hireflow/server exec prisma generate --schema prisma/schema.prisma
+
+      - name: Type Check (all packages)
+        run: npm run type-check
+
+      - name: Build (all packages)
+        run: npm run build
+
+      - name: Check UTF-8 encoding
+        run: npm run check:utf8
+
+      - name: Timeline link compat check
+        run: npm run test:timeline-link:compat

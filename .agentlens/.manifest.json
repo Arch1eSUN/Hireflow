@@ -1,0 +1,61 @@
+{
+  "version": "0.7.0",
+  "generated_at": 1770988132,
+  "modules": {
+    "server": {
+      "latest_mtime": 1770941949,
+      "file_count": 3,
+      "files_hash": 10041462222032009629
+    },
+    "server-src": {
+      "latest_mtime": 1770941329,
+      "file_count": 8,
+      "files_hash": 8844996844216971100
+    },
+    "apps-portal-src-pages": {
+      "latest_mtime": 1770944483,
+      "file_count": 13,
+      "files_hash": 9936970393734490998
+    },
+    "packages-shared-i18n-src": {
+      "latest_mtime": 1770943364,
+      "file_count": 4,
+      "files_hash": 14156867606954839071
+    },
+    "server-src-routes": {
+      "latest_mtime": 1770941989,
+      "file_count": 11,
+      "files_hash": 9413706939244089334
+    },
+    "apps-portal-src-components-ui": {
+      "latest_mtime": 1770942340,
+      "file_count": 5,
+      "files_hash": 7758089388410823763
+    },
+    "apps-interview-src-pages": {
+      "latest_mtime": 1770940499,
+      "file_count": 5,
+      "files_hash": 15984649999894112900
+    },
+    "server-src-utils": {
+      "latest_mtime": 1770941739,
+      "file_count": 6,
+      "files_hash": 4420203219993064932
+    },
+    "packages-shared-types-src": {
+      "latest_mtime": 1770902153,
+      "file_count": 1,
+      "files_hash": 4782010040569324324
+    },
+    "packages-shared-utils-src": {
+      "latest_mtime": 1770902357,
+      "file_count": 1,
+      "files_hash": 427210711697732750
+    },
+    "root": {
+      "latest_mtime": 1770942999,
+      "file_count": 36,
+      "files_hash": 12810660929326513415
+    }
+  }
+}

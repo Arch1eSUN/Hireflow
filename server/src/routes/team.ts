@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '../utils/errors';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma';
@@ -24,8 +25,8 @@ export async function teamRoutes(app: FastifyInstance) {
             });
 
             return success(members);
-        } catch (err: any) {
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+        } catch (err: unknown) {
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 
@@ -65,11 +66,11 @@ export async function teamRoutes(app: FastifyInstance) {
             });
 
             return success(updated);
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (err instanceof z.ZodError) {
                 return reply.status(400).send({ error: err.errors });
             }
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 
@@ -98,8 +99,8 @@ export async function teamRoutes(app: FastifyInstance) {
             await prisma.user.delete({ where: { id } });
 
             return success({ deleted: true });
-        } catch (err: any) {
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+        } catch (err: unknown) {
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 }

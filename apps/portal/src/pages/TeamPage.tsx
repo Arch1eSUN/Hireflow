@@ -1,19 +1,20 @@
 // HireFlow AI — 团队管理页 (Real API)
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, Shield, MoreVertical, Trash2, Loader2 } from 'lucide-react';
+import { UserPlus, Shield, Trash2, Loader2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useI18n } from '@hireflow/i18n/src/react';
+import { useI18n } from '@hireflow/i18n/react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
-import { User } from '@hireflow/types';
+import type { User } from '@hireflow/types';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 const roleOptions = [
-    { value: 'admin', label: '管理员' },
-    { value: 'hr_manager', label: 'HR 主管' },
-    { value: 'interviewer', label: '面试官' },
-    { value: 'viewer', label: '只读成员' },
+    { value: 'admin', label: 'team.role.admin' },
+    { value: 'hr_manager', label: 'team.role.hr_manager' },
+    { value: 'interviewer', label: 'team.role.interviewer' },
+    { value: 'viewer', label: 'team.role.viewer' },
 ];
 
 const TeamPage: React.FC = () => {
@@ -23,7 +24,7 @@ const TeamPage: React.FC = () => {
     const [editingRole, setEditingRole] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-    const { data: members, isLoading, error } = useQuery<User[]>({
+    const { data: members, isLoading, isError, refetch } = useQuery<User[]>({
         queryKey: ['team'],
         queryFn: async () => {
             const res = await api.get<{ data: User[] }>('/team');
@@ -38,11 +39,11 @@ const TeamPage: React.FC = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['team'] });
-            toast.success('角色已更新');
+            toast.success(t('team.toast.roleUpdated'));
             setEditingRole(null);
         },
         onError: (err: any) => {
-            toast.error(err.response?.data?.error || '更新失败');
+            toast.error(err.response?.data?.error || t('team.toast.updateFailed'));
         },
     });
 
@@ -53,11 +54,11 @@ const TeamPage: React.FC = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['team'] });
-            toast.success('成员已移除');
+            toast.success(t('team.toast.memberRemoved'));
             setDeleteTarget(null);
         },
         onError: (err: any) => {
-            toast.error(err.response?.data?.error || '移除失败');
+            toast.error(err.response?.data?.error || t('team.toast.removeFailed'));
         },
     });
 
@@ -65,9 +66,9 @@ const TeamPage: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-headline-large">{t('team.title')}</h1>
+            <div className="page-shell">
+                <div className="page-header">
+                    <h1 className="page-title">{t('team.title')}</h1>
                 </div>
                 <div className="card p-0 overflow-hidden animate-pulse">
                     {[1, 2, 3, 4].map(i => (
@@ -84,25 +85,31 @@ const TeamPage: React.FC = () => {
         );
     }
 
-    if (error) {
+    if (isError) {
         return (
-            <div className="space-y-5">
-                <h1 className="text-headline-large">{t('team.title')}</h1>
-                <div className="text-center py-16" style={{ color: 'var(--color-error)' }}>
-                    加载团队数据失败
-                </div>
-            </div>
+            <ErrorState
+                title={t('analytics.loadFailed')}
+                message={t('error.network')}
+                onRetry={() => {
+                    void refetch();
+                }}
+            />
         );
     }
 
     return (
-        <div className="space-y-5">
-            <div className="flex items-center justify-between">
-                <h1 className="text-headline-large">{t('team.title')}</h1>
-                <button className="btn btn-filled">
-                    <UserPlus size={18} />
-                    {t('team.inviteMember')}
-                </button>
+        <div className="page-shell">
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">{t('team.title')}</h1>
+                    <p className="page-subtitle">{t('common.total')} {members?.length || 0}</p>
+                </div>
+                <div className="page-actions">
+                    <button className="btn btn-filled">
+                        <UserPlus size={18} />
+                        {t('team.inviteMember')}
+                    </button>
+                </div>
             </div>
 
             <div className="card p-0 overflow-hidden">
@@ -112,7 +119,7 @@ const TeamPage: React.FC = () => {
                             <th>{t('common.name')}</th>
                             <th>{t('common.email')}</th>
                             <th>{t('common.role')}</th>
-                            <th>加入时间</th>
+                            <th>{t('team.joinedAt')}</th>
                             {isAdmin && <th style={{ width: 48 }}></th>}
                         </tr>
                     </thead>
@@ -132,7 +139,7 @@ const TeamPage: React.FC = () => {
                                         <span className="text-label-large">
                                             {m.name}
                                             {m.id === currentUser?.id && (
-                                                <span className="text-label-small ml-2" style={{ color: 'var(--color-on-surface-variant)' }}>(你)</span>
+                                                <span className="text-label-small ml-2" style={{ color: 'var(--color-on-surface-variant)' }}>({t('team.you')})</span>
                                             )}
                                         </span>
                                     </div>
@@ -157,7 +164,7 @@ const TeamPage: React.FC = () => {
                                             }}
                                         >
                                             {roleOptions.map((r) => (
-                                                <option key={r.value} value={r.value}>{r.label}</option>
+                                                <option key={r.value} value={r.value}>{t(r.label)}</option>
                                             ))}
                                         </select>
                                     ) : (
@@ -186,13 +193,15 @@ const TeamPage: React.FC = () => {
                                 {isAdmin && (
                                     <td>
                                         {m.id !== currentUser?.id && (
-                                            <button
-                                                className="btn-icon"
-                                                style={{ color: 'var(--color-error)' }}
-                                                onClick={() => setDeleteTarget({ id: m.id, name: m.name })}
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            <div className="table-action-reveal justify-end">
+                                                <button
+                                                    className="btn-icon"
+                                                    style={{ color: 'var(--color-error)' }}
+                                                    onClick={() => setDeleteTarget({ id: m.id, name: m.name })}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         )}
                                     </td>
                                 )}
@@ -226,12 +235,12 @@ const TeamPage: React.FC = () => {
                                 boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
                             }}
                         >
-                            <h3 className="text-title-large mb-2">确认移除</h3>
+                            <h3 className="text-title-large mb-2">{t('team.removeConfirmTitle')}</h3>
                             <p className="text-body-medium mb-6" style={{ color: 'var(--color-on-surface-variant)' }}>
-                                确定要从团队中移除 <strong>{deleteTarget.name}</strong> 吗？
+                                {t('team.removeConfirmDesc', { name: deleteTarget.name })}
                             </p>
                             <div className="flex justify-end gap-3">
-                                <button className="btn btn-text" onClick={() => setDeleteTarget(null)}>取消</button>
+                                <button className="btn btn-text" onClick={() => setDeleteTarget(null)}>{t('common.cancel')}</button>
                                 <button
                                     className="btn btn-filled"
                                     style={{ backgroundColor: 'var(--color-error)', color: 'white' }}
@@ -239,7 +248,7 @@ const TeamPage: React.FC = () => {
                                     disabled={deleteMutation.isPending}
                                 >
                                     {deleteMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                                    移除
+                                    {t('team.action.remove')}
                                 </button>
                             </div>
                         </motion.div>

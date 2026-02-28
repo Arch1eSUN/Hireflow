@@ -1,0 +1,10 @@
+{
+  "startedAt": "2026-02-27T07:47:44.016Z",
+  "finishedAt": "2026-02-27T07:47:46.305Z",
+  "durationMs": 2289,
+  "baseUrl": "http://localhost:4000",
+  "status": "failed",
+  "maxRetries": 0,
+  "suites": [],
+  "error": "\n============= E2E DB AUTO-START FAILED =============\nPostgres is not reachable at localhost:5433, and Docker auto-start failed.\nThis usually means Docker Desktop is not running, or docker is not installed.\n\n[FALLBACK OPTIONS]:\n 1. Start Docker Desktop and run this command again.\n 2. Manually start PostgreSQL on port 5433 with user 'hireflow' and password 'hireflow_password'.\n 3. Point to an existing DB using HIREFLOW_E2E_AUTO_DB_START=false DATABASE_URL=...\n===================================================="
+}

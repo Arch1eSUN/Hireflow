@@ -67,6 +67,27 @@ export async function cleanupOldData() {
         }
 
         logger.info(`Scheduled data cleanup task completed successfully. Total AuditLogs deleted: ${totalAuditLogsDeleted}.`);
+
+        // ── 清理旧的 webhook delivery 记录（保留 30 天） ──
+        const deliveryRetentionDate = new Date();
+        deliveryRetentionDate.setDate(deliveryRetentionDate.getDate() - 30);
+        const deliveryResult = await prisma.webhookDelivery.deleteMany({
+            where: { createdAt: { lt: deliveryRetentionDate } }
+        });
+        if (deliveryResult.count > 0) {
+            logger.info(`Cleaned up ${deliveryResult.count} old WebhookDelivery records (>30 days).`);
+        }
+
+        // ── 清理已读通知（保留 60 天） ──
+        const notiRetentionDate = new Date();
+        notiRetentionDate.setDate(notiRetentionDate.getDate() - 60);
+        const notiResult = await prisma.notification.deleteMany({
+            where: { read: true, createdAt: { lt: notiRetentionDate } }
+        });
+        if (notiResult.count > 0) {
+            logger.info(`Cleaned up ${notiResult.count} old read notifications (>60 days).`);
+        }
+
     } catch (error) {
         logger.error({ err: error }, 'Scheduled data cleanup task failed');
     }

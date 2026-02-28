@@ -1,9 +1,27 @@
 import { PrismaClient } from '@prisma/client';
+import { hashPassword } from '../src/utils/passwords';
 
 const prisma = new PrismaClient();
 
 async function main() {
     console.log('🌱 Starting seed...');
+
+    // 0. Clean up existing data
+    console.log('Cleaning up existing data...');
+    await prisma.interviewMessage.deleteMany();
+    await prisma.evaluation.deleteMany();
+    await prisma.interviewFeedback.deleteMany();
+    await prisma.interview.deleteMany();
+    await prisma.candidate.deleteMany();
+    await prisma.job.deleteMany();
+    await prisma.notification.deleteMany();
+    await prisma.user.deleteMany();
+    await prisma.companySettings.deleteMany();
+    await prisma.apiKeyStore.deleteMany();
+    await prisma.integration.deleteMany();
+    await prisma.screeningRule.deleteMany();
+    await prisma.auditLog.deleteMany();
+    await prisma.company.deleteMany();
 
     // 1. Create Company
     const company = await prisma.company.create({
@@ -23,14 +41,14 @@ async function main() {
     console.log('Created Company:', company.id);
 
     // 2. Create User (Admin)
-    // Password: "password123" (Mock hash, in real app use bcrypt.hash)
+    const adminPasswordHash = await hashPassword('password123');
     const user = await prisma.user.create({
         data: {
             email: 'zhangtong@hireflow.ai',
             name: '张通',
             role: 'admin',
             companyId: company.id,
-            passwordHash: '$2b$10$EpWaTBcQ/..mockhash..',
+            passwordHash: adminPasswordHash,
         },
     });
     console.log('Created User:', user.name);
@@ -134,12 +152,12 @@ async function main() {
 
     console.log('Created Candidates:', c1.name, c2.name, c3.name);
 
-    // 5. Create Interview (Mock Session)
+    // 5. Create Interview (Demo Session)
     await prisma.interview.create({
         data: {
             jobId: job1.id,
             candidateId: c1.id,
-            token: 'mock-token-123',
+            token: 'demo-token-123',
             status: 'upcoming',
             type: 'ai_interview',
             startTime: new Date(Date.now() + 3600000) // 1 hour later

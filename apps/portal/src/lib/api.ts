@@ -1,14 +1,56 @@
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/authStore';
+import { resolveApiBaseUrl } from './runtime';
+
+type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
+
+interface AuthUserPayload {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    companyId?: string;
+    company?: { id?: string };
+}
 
 // Create Axios instance
 const api = axios.create({
-    baseURL: 'http://localhost:4000/api', // TODO: Load from env
+    baseURL: resolveApiBaseUrl(),
     headers: {
         'Content-Type': 'application/json',
     },
     withCredentials: true, // Send cookies (refresh token)
 });
+
+function normalizeUser(user: AuthUserPayload) {
+    return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        companyId: user.companyId || user.company?.id || '',
+    };
+}
+
+async function setSessionAfterRefresh(accessToken: string) {
+    const existingUser = useAuthStore.getState().user;
+    if (existingUser) {
+        useAuthStore.getState().login(accessToken, existingUser);
+        return;
+    }
+
+    const meResponse = await axios.get(`${api.defaults.baseURL}/auth/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        withCredentials: true,
+    });
+    const me = meResponse.data?.data as AuthUserPayload | undefined;
+
+    if (!me?.id) {
+        throw new Error('Unable to restore user profile from /auth/me');
+    }
+
+    useAuthStore.getState().login(accessToken, normalizeUser(me));
+}
 
 // Request Interceptor: Attach Token
 api.interceptors.request.use(
@@ -25,7 +67,7 @@ api.interceptors.request.use(
 // Flag to prevent multiple simultaneous refresh attempts
 let isRefreshing = false;
 let failedQueue: Array<{
-    resolve: (value: unknown) => void;
+    resolve: (value: string) => void;
     reject: (reason?: unknown) => void;
 }> = [];
 
@@ -34,7 +76,7 @@ const processQueue = (error: unknown, token: string | null = null) => {
         if (error) {
             reject(error);
         } else {
-            resolve(token);
+            resolve(token || '');
         }
     });
     failedQueue = [];
@@ -43,12 +85,16 @@ const processQueue = (error: unknown, token: string | null = null) => {
 // Response Interceptor: Handle 401 with Token Refresh
 api.interceptors.response.use(
     (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
+    async (rawError: AxiosError) => {
+        const originalRequest = rawError.config as RetryConfig | undefined;
+
+        if (!originalRequest) {
+            return Promise.reject(rawError);
+        }
 
         // Only attempt refresh on 401 errors, and not for auth endpoints themselves
         if (
-            error.response?.status === 401 &&
+            rawError.response?.status === 401 &&
             !originalRequest._retry &&
             !originalRequest.url?.includes('/auth/login') &&
             !originalRequest.url?.includes('/auth/register') &&
@@ -56,7 +102,7 @@ api.interceptors.response.use(
         ) {
             if (isRefreshing) {
                 // Queue requests while refreshing
-                return new Promise((resolve, reject) => {
+                return new Promise<string>((resolve, reject) => {
                     failedQueue.push({ resolve, reject });
                 }).then((token) => {
                     originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -68,31 +114,24 @@ api.interceptors.response.use(
             isRefreshing = true;
 
             try {
-                // Attempt to refresh the token using the HTTP-Only cookie
                 const refreshResponse = await axios.post(
-                    'http://localhost:4000/api/auth/refresh',
+                    `${api.defaults.baseURL}/auth/refresh`,
                     {},
                     { withCredentials: true }
                 );
 
-                const newToken = refreshResponse.data?.data?.accessToken;
+                const newToken = refreshResponse.data?.data?.accessToken as string | undefined;
 
-                if (newToken) {
-                    // Update the token in the store
-                    const currentUser = useAuthStore.getState().user;
-                    useAuthStore.getState().login(newToken, currentUser!);
-
-                    // Retry all queued requests
-                    processQueue(null, newToken);
-
-                    // Retry the original request
-                    originalRequest.headers.Authorization = `Bearer ${newToken}`;
-                    return api(originalRequest);
-                } else {
-                    throw new Error('No token in refresh response');
+                if (!newToken) {
+                    throw new Error('No access token received during refresh');
                 }
+
+                await setSessionAfterRefresh(newToken);
+                processQueue(null, newToken);
+
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                return api(originalRequest);
             } catch (refreshError) {
-                // Refresh failed — clear auth and redirect to login
                 processQueue(refreshError, null);
                 useAuthStore.getState().logout();
                 window.location.href = '/login';
@@ -102,7 +141,7 @@ api.interceptors.response.use(
             }
         }
 
-        return Promise.reject(error);
+        return Promise.reject(rawError);
     }
 );
 

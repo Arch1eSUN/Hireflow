@@ -1,10 +1,13 @@
+import { extractErrorMessage } from '../utils/errors';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma';
 import { authenticate } from '../utils/auth';
-import { success, error } from '../utils/response';
+import { success } from '../utils/response';
 
 export async function candidateRoutes(app: FastifyInstance) {
+    const phoneSchema = z.string().trim().min(5).max(32);
+
     // List Candidates
     app.get('/api/candidates', async (request, reply) => {
         try {
@@ -14,7 +17,7 @@ export async function candidateRoutes(app: FastifyInstance) {
             const skip = (Number(page) - 1) * Number(pageSize);
             const take = Number(pageSize);
 
-            const where: any = {
+            const where: Record<string, unknown> = {
                 companyId: user.companyId,
             };
 
@@ -45,8 +48,8 @@ export async function candidateRoutes(app: FastifyInstance) {
                 pageSize: Number(pageSize),
                 total
             });
-        } catch (err: any) {
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+        } catch (err: unknown) {
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 
@@ -70,8 +73,8 @@ export async function candidateRoutes(app: FastifyInstance) {
             }
 
             return success(candidate);
-        } catch (err: any) {
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+        } catch (err: unknown) {
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 
@@ -82,7 +85,7 @@ export async function candidateRoutes(app: FastifyInstance) {
             const schema = z.object({
                 name: z.string().min(2),
                 email: z.string().email(),
-                phone: z.string().min(5),
+                phone: z.union([phoneSchema, z.literal('')]).optional(),
                 jobId: z.string(),
                 stage: z.string().default('screening'),
                 skills: z.array(z.string()).optional(),
@@ -103,6 +106,7 @@ export async function candidateRoutes(app: FastifyInstance) {
             const candidate = await prisma.candidate.create({
                 data: {
                     ...data,
+                    phone: data.phone?.trim() || '',
                     companyId: user.companyId,
                     appliedDate: new Date(),
                 }
@@ -116,11 +120,11 @@ export async function candidateRoutes(app: FastifyInstance) {
 
             return success(candidate);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (err instanceof z.ZodError) {
                 return reply.status(400).send({ error: err.errors });
             }
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 
@@ -145,8 +149,8 @@ export async function candidateRoutes(app: FastifyInstance) {
             });
 
             return success(updated);
-        } catch (err: any) {
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+        } catch (err: unknown) {
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 
@@ -159,7 +163,7 @@ export async function candidateRoutes(app: FastifyInstance) {
             const schema = z.object({
                 name: z.string().min(2).optional(),
                 email: z.string().email().optional(),
-                phone: z.string().min(5).optional(),
+                phone: z.union([phoneSchema, z.literal('')]).optional(),
                 stage: z.string().optional(),
                 score: z.number().optional(),
                 skills: z.array(z.string()).optional(),
@@ -182,11 +186,11 @@ export async function candidateRoutes(app: FastifyInstance) {
             });
 
             return success(updated);
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (err instanceof z.ZodError) {
                 return reply.status(400).send({ error: err.errors });
             }
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 
@@ -222,8 +226,8 @@ export async function candidateRoutes(app: FastifyInstance) {
             });
 
             return success({ deleted: true });
-        } catch (err: any) {
-            return reply.status(err.statusCode || 500).send({ error: err.message });
+        } catch (err: unknown) {
+            return reply.status(500).send({ error: extractErrorMessage(err) });
         }
     });
 }

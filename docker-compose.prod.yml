@@ -1,0 +1,113 @@
+version: "3.9"
+
+services:
+  # ── HireFlow API Server ──
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hireflow-server
+    restart: always
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-hireflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hireflow_db}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - APP_URL=${APP_URL}
+      - AUTH_COOKIE_SAMESITE=${AUTH_COOKIE_SAMESITE:-lax}
+      - AUTH_COOKIE_SECURE=true
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET=${S3_BUCKET:-hireflow-storage}
+      - S3_REGION=${S3_REGION:-us-east-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/api/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - hireflow
+
+  # ── PostgreSQL ──
+  postgres:
+    image: postgres:16-alpine
+    container_name: hireflow-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hireflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-hireflow_db}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hireflow} -d ${POSTGRES_DB:-hireflow_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hireflow
+
+  # ── Redis ──
+  redis:
+    image: redis:7-alpine
+    container_name: hireflow-redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - hireflow
+
+  # ── MinIO (S3-compatible storage) ──
+  minio:
+    image: minio/minio
+    container_name: hireflow-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-hireflow_minio}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-hireflow_minio_password}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - hireflow
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+
+networks:
+  hireflow:
+    driver: bridge

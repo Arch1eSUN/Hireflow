@@ -29,10 +29,7 @@
       ]
     }
   },
-  "include": [
-    "src/**/*",
-    "vite-env.d.ts"
-  ],
+  "include": [],
   "exclude": [
     "node_modules",
     "dist",
